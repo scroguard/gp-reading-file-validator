@@ -179,3 +179,15 @@ def test_temetra_dials_range_differs_from_fcs():
     _, fcs = run(content, "import.xml", "fcs-xml")
     _, tem = run(content, "import.xml", "temetra-xml")
     assert fcs == [] and codes(tem) == ["out-of-range"]
+
+
+def test_padded_lookup_values_and_blank_required_are_warnings():
+    _, issues = run(tcsv([row(0, METERTYPE="Generic     ", ROUTENAME=" ")]))
+    assert codes(issues, Severity.WARNING) == ["blank-value", "padded-value"]
+    assert codes(issues, Severity.ERROR) == []
+
+
+def test_duplicate_serial_explains_register_linking():
+    _, issues = run(tcsv([row(0), row(1, METERSERIAL="1234567")]))
+    [dup] = issues
+    assert dup.code == "duplicate-value" and "LINKEDMETERSERIAL" in dup.message

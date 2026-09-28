@@ -98,6 +98,8 @@ csv:
       required: [METERSERIAL]                        # p.36; CREF and METERSERIAL first is recommended
       page: 36
 
+  # `exact` = the guide says the value must exactly match an entry in a Temetra list, so
+  # surrounding spaces are reported. `not_null_warn` = blank values are a warning.
   # Column rules. kind: text | number | integer | decimal | date | datetime | yesno | truefalse |
   # email | gps | lat | lon | tags. `values` are exact matches; `values_warn` lists that
   # only produce a warning when a value is not in them (lists the guide says depend on
@@ -107,31 +109,31 @@ csv:
     CANCREATE: {kind: yesno, page: 15}
     CREF: {kind: text, max: 30, unique: true, page: 15}
     MCATEGORY: {kind: text, values: ["0", "1", "4"], page: 15}
-    COLLECTIONMETHOD: {kind: text, page: 16, values: ["Manual Read", "Wireless", "Gen5 500G ERT", "Gen5 500W ERT",
+    COLLECTIONMETHOD: {kind: text, exact: true, page: 16, values: ["Manual Read", "Wireless", "Gen5 500G ERT", "Gen5 500W ERT",
       "Gen5 Intelis Gas", "Riva 500G ERT", "Riva 500W ERT", "Cellular 500W ERT", "Cellular 500G ERT", "Wand", "Fixed Network"]}
     MIUSERIAL: {kind: number, max: 50, unique: true, page: 17}
     MIUINSTALLATIONDATE: {kind: date, page: 17}
     ADDACCOUNTTAG: {kind: tags, max: 500, tag_set: customer, page: 17}
     REMOVEACCOUNTTAG: {kind: text, page: 18}
-    METERBRAND: {kind: text, page: 18}
-    METERMODEL: {kind: text, page: 18}
-    METERTYPE: {kind: text, page: 18}
-    METERUNITS: {kind: text, page: 18, values_warn: [CCF, CGAL, cu ft, gal, kgal, kL, kVA, kVar, kVarh, kW, kWh, "m^3", m3, MCF, ML, PF, Vah, Wh]}
+    METERBRAND: {kind: text, exact: true, page: 18}
+    METERMODEL: {kind: text, exact: true, page: 18}
+    METERTYPE: {kind: text, exact: true, page: 18}
+    METERUNITS: {kind: text, exact: true, page: 18, values_warn: [CCF, CGAL, cu ft, gal, kgal, kL, kVA, kVar, kVarh, kW, kWh, "m^3", m3, MCF, ML, PF, Vah, Wh]}
     METERUNIT: {kind: text, page: 14, same_as: METERUNITS}
-    METERNOMINALSIZE: {kind: text, max: 50, page: 19, values_warn: [DN15 Coax, DN15, DN20, DN20 Coax, DN25, DN30, DN32, DN40, DN50,
+    METERNOMINALSIZE: {kind: text, exact: true, max: 50, page: 19, values_warn: [DN15 Coax, DN15, DN20, DN20 Coax, DN25, DN30, DN32, DN40, DN50,
       DN60, DN65, DN80, DN100, DN125, DN150, DN200, DN250, DN300, DN400, DN500, DN600, DN25 Coax, DN75, DN30 Coax]}
-    METERNOMINALSIZE_IMPERIAL: {kind: text, max: 50, page: 19, strip_quotes: true,
+    METERNOMINALSIZE_IMPERIAL: {kind: text, exact: true, max: 50, page: 19, strip_quotes: true,
       values_warn: ["1/2", "5/8", "3/4", "5/8 X 3/4", "1", "1.5", "2", "3", "4", "6", "8", "10"]}
     METERFORMAT: {kind: meterformat, page: 19, values: ["10.3", "10.2", "10.1", "9.4", "9.3", "9.2", "9.1", "9.0", "8.4", "8.3", "8.2",
       "8.1", "8.0", "7.3", "7.2", "7.1", "7.0", "6.3", "6.2", "6.1", "6.0", "5.2", "5.1", "5.0", "4.0", "3.0"]}
     NOTE1: {kind: text, page: 19}
     NOTE2: {kind: text, page: 19}
     NOTE3: {kind: text, page: 20}
-    CATEGORY: {kind: text, max: 50, page: 20}
+    CATEGORY: {kind: text, exact: true, max: 50, page: 20}
     GPS: {kind: gps, max: 32, page: 20}
-    DMA: {kind: text, page: 21}
+    DMA: {kind: text, exact: true, page: 21}
     SEQUENCE: {kind: integer, max_digits: 10, not_null_warn: true, page: 21}
-    ROUTENAME: {kind: text, page: 21}
+    ROUTENAME: {kind: text, exact: true, not_null_warn: true, page: 21}
     ROUTECODE: {kind: text, max: 6, page: 21}
     METERSERIAL: {kind: text, max: 48, min: 5, required: true, unique: true, page: 21}
     PROPERTYADDRESS: {kind: text, max: 500, page: 21}
@@ -140,18 +142,18 @@ csv:
     EXCLUDEFROMHANDHELD: {kind: yesno, page: 22}
     EXCLUDEFROMCONSUMPTION: {kind: yesno, page: 22}
     PIPESIZEMM: {kind: text, page: 22}
-    PIPETYPE: {kind: text, page: 22, values_warn: [PVC, Wavin (old), Copper Lead, Hardened Plastic, HDPE HG, HDPE NG, Lead, Copper, Other,
+    PIPETYPE: {kind: text, exact: true, page: 22, values_warn: [PVC, Wavin (old), Copper Lead, Hardened Plastic, HDPE HG, HDPE NG, Lead, Copper, Other,
       Copper PVC, Lead PVC, Qualplex, PVC Class C, Gun Barrel, Cast Iron, Galvanized Iron, HDPE HG and Lead]}
-    ACCOUNTREF: {kind: text, max: 25, page: 22}
-    CHAMBER: {kind: text, page: 23}
-    CHAMBERSURROUNDINGS: {kind: text, page: 24}
+    ACCOUNTREF: {kind: text, not_null_warn: true, max: 25, page: 22}
+    CHAMBER: {kind: text, exact: true, page: 23}
+    CHAMBERSURROUNDINGS: {kind: text, exact: true, page: 24}
     EFR: {kind: text, page: 25}
     OWNER: {kind: text, max: 60, page: 25}
     NEWMETERSERIAL: {kind: text, max: 48, min: 5, page: 25}
     NEWACCOUNTREF: {kind: text, max: 25, page: 26}
-    ACCOUNTNAME: {kind: text, max: 100, page: 26}
+    ACCOUNTNAME: {kind: text, not_null_warn: true, max: 100, page: 26}
     ADDRESS: {kind: text, max: 500, page: 26}
-    ADDRESSLINE1: {kind: text, page: 26}
+    ADDRESSLINE1: {kind: text, not_null_warn: true, page: 26}
     ADDRESSLINE2: {kind: text, page: 26}
     ADDRESSLINE3: {kind: text, page: 26}
     ADDRESSLINE4: {kind: text, page: 26}
@@ -176,7 +178,7 @@ csv:
     PERMANENTLYDISCONNECTED: {kind: truefalse, page: 29}
     LON: {kind: lon, page: 30}
     LAT: {kind: lat, page: 32}
-    METERLOCATIONCODE: {kind: text, max: 8, page: 32}
+    METERLOCATIONCODE: {kind: text, exact: true, max: 8, page: 32}
     AMRGROUP: {kind: number, page: 32}
     ADDTAG: {kind: tags, max: 500, tag_set: meter, page: 32}
     REMOVETAG: {kind: text, page: 32}

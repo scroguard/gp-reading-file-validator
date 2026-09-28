@@ -229,11 +229,15 @@ def _check_value(rules, n, col: Col, raw: str, unique_seen) -> list[Issue]:
         if rule.get("required"):
             return err("required-blank", f"{col.name} is blank", f"{col.name} cannot be blank.")
         if rule.get("not_null_warn"):
-            return err("blank-value", f"{col.name} is blank", f"The guide says {col.name} should not be null.",
-                       Severity.WARNING)
+            return err("blank-value", f"{col.name} is blank",
+                       f"The guide marks {col.name} as Required or not null, but it is blank.", Severity.WARNING)
         return []
     out: list[Issue] = []
     kind = rule["kind"]
+    if rule.get("exact") and raw != value:
+        out += err("padded-value", f"{col.name}: padded with spaces",
+                   f"\"{raw}\" has leading or trailing spaces. The guide says {col.name} must exactly match an entry "
+                   f"in Temetra's list, so the spaces may stop it matching.", Severity.WARNING)
     if rule.get("max") and len(value) > rule["max"]:
         out += err("length", f"{col.name}: too long", f"It can be at most {rule['max']} characters, but it is {len(value)}.")
     if rule.get("min") and len(value) < rule["min"]:
@@ -281,8 +285,12 @@ def _check_value(rules, n, col: Col, raw: str, unique_seen) -> list[Issue]:
     if rule.get("unique"):
         key = (col.name, value)
         if key in unique_seen:
+            hint = ("" if col.name not in ("METERSERIAL", "CREF") else
+                    " If this row is a second register of the same meter (for example kW demand), Itron's example "
+                    "gives each register its own METERSERIAL and CREF (such as 3333333-1), with LINKEDMETERSERIAL set to "
+                    "the main meter's serial and an original-meter-serial=<serial> tag in ADDTAG.")
             out += err("duplicate-value", f"{col.name} not unique",
-                       f"\"{value}\" is also used on line {unique_seen[key]}. {col.name} must be unique.")
+                       f"\"{value}\" is also used on line {unique_seen[key]}. {col.name} must be unique.{hint}")
         unique_seen.setdefault(key, n)
     return out
 
