@@ -623,8 +623,10 @@ class RuleChecker:
                                               severity=Severity.WARNING, page=64))
                     if last_seq and seq < last_seq[0]:
                         self.add(_field_issue("read-sequence-decreases", "Meter Read Sequence decreases", mtr, "meter_read_sequence",
-                                              f"Sequence numbers must never decrease from the start to the end of the route "
-                                              f"(p.64), but {seq} follows {last_seq[0]} on line {last_seq[1].n}.", page=64))
+                                              f"Sequence numbers should never decrease from the start to the end of the route "
+                                              f"(p.64), but {seq} follows {last_seq[0]} on line {last_seq[1].n}. MV-RS "
+                                              f"corrects the sequence on import and warns the user, so this is a warning.",
+                                              severity=Severity.WARNING, page=64))
                     elif seq in seen_seq:
                         self.add(_field_issue("read-sequence-duplicate", "Meter Read Sequence not unique", mtr, "meter_read_sequence",
                                               f"Sequence numbers should be unique within the route (p.64), but {seq} is also "

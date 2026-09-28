@@ -336,7 +336,8 @@ def test_read_sequence_must_increase_and_be_unique():
     body = account(0, mtr=dict(meter_read_sequence="30")) + account(1, mtr=dict(meter_read_sequence="20"))
     body += account(2, mtr=dict(meter_read_sequence="30"))
     _, issues = run(build_file(body))
-    assert codes(issues) == ["read-sequence-decreases", "read-sequence-duplicate"]
+    assert codes(issues, Severity.WARNING) == ["read-sequence-decreases", "read-sequence-duplicate"]
+    assert codes(issues, Severity.ERROR) == []
 
 
 def test_read_method_n_requires_prompt_code_p_or_n():

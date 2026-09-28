@@ -27,7 +27,7 @@ def test_valid_file_report():
 def test_report_lists_errors_and_pdf_downloads():
     r = upload(build_file(account(0, mtr=dict(meter_category="X"))))
     assert "1 error found" in r.text and "Meter Category" in r.text
-    [pdf_url] = re.findall(r'href="([^"]*/report/[^"]+\.pdf)"', r.text)
+    [pdf_url] = re.findall(r'action="([^"]*/report/[^"]+\.pdf)"', r.text)
     pdf = client.get(pdf_url)
     assert pdf.status_code == 200 and pdf.headers["content-type"] == "application/pdf"
     assert pdf.content.startswith(b"%PDF") and 'filename="route-validation.pdf"' in pdf.headers["content-disposition"]
@@ -64,7 +64,7 @@ def test_served_under_a_sub_path(strip_prefix):
     assert sub.get(prefix + "/static/app.css").status_code == 200
     r = sub.post(prefix + "/validate", data={"format": "mvrs"},
                  files={"file": ("a.dat", build_file(), "text/plain")})
-    [pdf_url] = re.findall(r'href="([^"]*/report/[^"]+\.pdf)"', r.text)
+    [pdf_url] = re.findall(r'action="([^"]*/report/[^"]+\.pdf)"', r.text)
     assert pdf_url.startswith("/validator/report/")
     path = pdf_url if not strip_prefix else pdf_url.removeprefix("/validator")
     assert sub.get(path).status_code == 200
@@ -73,3 +73,24 @@ def test_served_under_a_sub_path(strip_prefix):
 def test_bare_sub_path_serves_the_upload_page():
     sub = TestClient(web.BasePathMiddleware(web.app, "/validator"))
     assert sub.get("/validator").status_code == 200
+
+
+def test_pdf_includes_customer_name():
+    r = upload(build_file(), name="route7.dat")
+    [pdf_url] = re.findall(r'action="([^"]*/report/[^"]+\.pdf)"', r.text)
+    pdf = client.get(pdf_url, params={"customer": "  City of  Springfield "})
+    assert pdf.status_code == 200
+    assert 'filename="city-of-springfield-route7-validation.pdf"' in pdf.headers["content-disposition"]
+    assert b"generated for City of Springfield" in _pdf_text(pdf.content)
+
+
+def _pdf_text(content: bytes) -> bytes:
+    import zlib
+    out = b""
+    for chunk in content.split(b"stream")[1:]:
+        data = chunk.split(b"endstream")[0].strip(b"\r\n")
+        try:
+            out += zlib.decompress(data)
+        except zlib.error:
+            pass
+    return out

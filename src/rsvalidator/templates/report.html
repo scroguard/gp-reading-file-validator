@@ -13,7 +13,11 @@
       <p class="muted">Checked {{ report.created.strftime('%B %-d, %Y at %-I:%M %p') }} against {{ report.guide }}</p>
     </div>
     <div class="actions">
-      <a class="btn primary" href="{{ url_for('report_pdf', token=token).path }}">Download PDF</a>
+      <form class="pdf-form" method="get" action="{{ url_for('report_pdf', token=token).path }}">
+        <label for="customer" class="sr">Customer name for the PDF</label>
+        <input type="text" id="customer" name="customer" maxlength="100" placeholder="Customer name (for the PDF)">
+        <button type="submit" class="btn primary">Download PDF</button>
+      </form>
       <a class="btn" href="{{ url_for('index').path }}">Validate another file</a>
     </div>
   </div>

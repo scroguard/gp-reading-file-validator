@@ -46,14 +46,18 @@ class _Doc(FPDF):
         self.set_text_color(0)
 
 
-def render_pdf(report: Report) -> bytes:
+def render_pdf(report: Report, customer: str = "") -> bytes:
     pdf = _Doc(report)
     pdf.alias_nb_pages()
     pdf.add_page()
     width = pdf.epw
 
+    kind = "Host download file report"
     pdf.set_font("Helvetica", "B", 16)
-    pdf.multi_cell(width, 8, _t(report.filename), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.multi_cell(width, 8, _t(f"{kind} generated for {customer}" if customer else kind),
+                   align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_font("Helvetica", "B", 11)
+    pdf.multi_cell(width, 6, _t(f"File: {report.filename}"), align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(*MUTED_RGB)
     pdf.multi_cell(width, 5, _t(

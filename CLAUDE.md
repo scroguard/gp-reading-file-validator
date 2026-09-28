@@ -143,7 +143,7 @@ Still enforced:
 - Pad bytes that aren't blank.
 - Header/trailer mismatches.
 - Cycle and route counts in the FHD/CHD.
-- Duplicate or zero read sequence numbers (MV-RS renumbers them).
+- Duplicate, zero or decreasing read sequence numbers (MV-RS corrects them on import and warns).
 - A file indicator of Y with no matching records.
 - Informational route totals (keyed, gas, water, electric, location, extra).
 

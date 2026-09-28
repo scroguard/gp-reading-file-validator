@@ -89,6 +89,12 @@ select, input[type=search] {
 .eyebrow { text-transform: uppercase; letter-spacing: .06em; font-size: .75rem; color: var(--muted); margin: 0; }
 .filename { word-break: break-all; }
 .actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-start; }
+.pdf-form { display: flex; flex-wrap: wrap; gap: .5rem; }
+.pdf-form input {
+  font: inherit; padding: .45rem .6rem; border-radius: 7px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); min-width: 0; width: 16rem; max-width: 100%;
+}
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .verdict { margin: 1rem 0; padding: .7rem .9rem; border-radius: 8px; font-weight: 600; }
 .verdict.pass { background: var(--ok-bg); color: var(--ok); }
 .verdict.fail { background: var(--error-bg); color: var(--error); }

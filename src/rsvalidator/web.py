@@ -7,13 +7,14 @@ is kept in memory for a short time so the PDF can be downloaded.
 from __future__ import annotations
 
 import os
+import re
 import secrets
 import threading
 import time
 from collections import OrderedDict
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -120,13 +121,15 @@ async def validate_upload(request: Request, file: UploadFile = File(...), format
 
 
 @app.get("/report/{token}.pdf")
-def report_pdf(token: str):
+def report_pdf(token: str, customer: str = Query("", max_length=100)):
     report = reports.get(token)
     if report is None:
         raise HTTPException(404, "This report has expired. Upload the file again to regenerate it.")
-    stem = Path(report.filename).stem or "report"
+    customer = " ".join(customer.split())
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", customer).strip("-").lower()
+    stem = "-".join(x for x in (slug, Path(report.filename).stem) if x) or "report"
     return Response(
-        render_pdf(report),
+        render_pdf(report, customer),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{stem}-validation.pdf"'},
     )
