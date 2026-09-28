@@ -388,3 +388,11 @@ def test_account_number_starting_with_spaces_is_a_warning():
     _, issues = run(build_file(account(0, cus=dict(account_number="       1234567"))))
     [issue] = issues
     assert issue.code == "not-left-justified" and issue.severity == Severity.WARNING
+
+
+def test_all_zero_segment_code_is_highly_recommended():
+    # FCS accepts it; it may cause problems in Temetra.
+    _, issues = run(build_file(account(0, cus=dict(segment_code="0"))))
+    [issue] = issues
+    assert issue.code == "segment-all-zeros" and issue.severity == Severity.RECOMMENDED
+    assert "Temetra" in issue.message

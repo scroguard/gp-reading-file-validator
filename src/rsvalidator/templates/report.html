@@ -21,20 +21,24 @@
       <a class="btn" href="{{ url_for('index').path }}">Validate another file</a>
     </div>
   </div>
-  <div class="verdict {{ 'pass' if report.valid else 'fail' }}">
-    {% if report.valid %}
-      No errors found. This file follows the {{ report.format_name }} layout{% if report.warnings %} ({{ report.warnings }} warning{{ 's' if report.warnings != 1 }} below){% endif %}.
+  {% set n_err, n_rec, n_warn = report.errors, report.recommended, report.warnings %}
+  <div class="verdict {{ 'fail' if n_err else 'caution' if n_rec else 'pass' }}">
+    {% if n_err %}
+      {{ '{:,}'.format(n_err) }} problem{{ 's' if n_err != 1 }} must be corrected{% if n_rec %}, plus {{ '{:,}'.format(n_rec) }} highly recommended correction{{ 's' if n_rec != 1 }}{% endif %}{% if n_warn %} and {{ '{:,}'.format(n_warn) }} warning{{ 's' if n_warn != 1 }}{% endif %}.
+    {% elif n_rec %}
+      Nothing must be corrected, but {{ '{:,}'.format(n_rec) }} correction{{ 's are' if n_rec != 1 else ' is' }} highly recommended{% if n_warn %} ({{ '{:,}'.format(n_warn) }} warning{{ 's' if n_warn != 1 }} too){% endif %}.
     {% else %}
-      {{ '{:,}'.format(report.errors) }} error{{ 's' if report.errors != 1 }} found{% if report.warnings %}, plus {{ report.warnings }} warning{{ 's' if report.warnings != 1 }}{% endif %}.
+      Nothing must be corrected. This file follows the {{ report.format_name }} layout{% if n_warn %} ({{ '{:,}'.format(n_warn) }} warning{{ 's' if n_warn != 1 }} below){% endif %}.
     {% endif %}
   </div>
   <dl class="stats">
     <div><dt>Lines</dt><dd>{{ '{:,}'.format(report.line_count) }}</dd></div>
     <div><dt>Routes</dt><dd>{{ report.route_count }}</dd></div>
     <div><dt>Accounts</dt><dd>{{ '{:,}'.format(report.account_count) }}</dd></div>
-    <div><dt>Accounts with errors</dt><dd>{{ '{:,}'.format(report.accounts_with_errors) }}</dd></div>
-    <div><dt>Errors</dt><dd class="{{ 'bad' if report.errors }}">{{ '{:,}'.format(report.errors) }}</dd></div>
-    <div><dt>Warnings</dt><dd class="{{ 'warn' if report.warnings }}">{{ '{:,}'.format(report.warnings) }}</dd></div>
+    <div><dt>Accounts to correct</dt><dd>{{ '{:,}'.format(report.accounts_with_errors) }}</dd></div>
+    <div><dt>Must correct</dt><dd class="{{ 'bad' if n_err }}">{{ '{:,}'.format(n_err) }}</dd></div>
+    <div><dt>Highly recommended</dt><dd class="{{ 'rec' if n_rec }}">{{ '{:,}'.format(n_rec) }}</dd></div>
+    <div><dt>Warnings</dt><dd class="{{ 'warn' if n_warn }}">{{ '{:,}'.format(n_warn) }}</dd></div>
   </dl>
 </section>
 
@@ -43,6 +47,12 @@
   <h2>Summary</h2>
   <p class="muted">Each kind of problem, how often it occurs, and how many accounts it affects. Select a row to show only
     the sections with that problem.</p>
+  <ul class="legend">
+    <li><span class="tag error">Must correct</span> The import fails or the data is wrong.</li>
+    <li><span class="tag recommended">Highly recommended</span> Accepted by some systems (for example FCS) but may cause
+      problems in others (for example Temetra or MV-RS).</li>
+    <li><span class="tag warning">Warning</span> Worth knowing; the file imports as intended.</li>
+  </ul>
   <div class="table-scroll">
     <table class="summary" id="summary">
       <thead><tr><th>Problem</th><th>Type</th><th class="num">Occurrences</th><th class="num">Accounts</th><th class="num">First line</th></tr></thead>
@@ -50,7 +60,7 @@
       {% for row in report.summary %}
         <tr data-cat="{{ loop.index0 }}" tabindex="0">
           <td>{{ row.category }}</td>
-          <td><span class="tag {{ row.severity.value }}">{{ row.severity.value }}</span></td>
+          <td><span class="tag {{ row.severity.value }}">{{ row.severity.label }}</span></td>
           <td class="num">{{ '{:,}'.format(row.count) }}</td>
           <td class="num">{{ '{:,}'.format(row.accounts) if row.accounts else '—' }}</td>
           <td class="num">{{ row.first_line or '—' }}</td>
@@ -66,7 +76,13 @@
 <section class="details">
   <div class="toolbar">
     <input type="search" id="search" placeholder="Search names, account numbers or line numbers…" aria-label="Search">
-    <label class="check"><input type="checkbox" id="errors-only"> Errors only</label>
+    <label class="check">Show
+      <select id="level" aria-label="Show">
+        <option value="2">Everything</option>
+        <option value="1">Must correct and highly recommended</option>
+        <option value="0">Must correct only</option>
+      </select>
+    </label>
     <button class="btn small" id="expand">Expand all</button>
     <button class="btn small" id="collapse">Collapse all</button>
     <span class="muted" id="filter-note" hidden></span>
@@ -75,22 +91,23 @@
   {% for s in shown %}
   <details class="section {{ s.kind }}" {% if s.kind != 'account' or shown|length <= 25 %}open{% endif %}
            data-cats="{% for c in s.issues | map(attribute='category') | unique %}{{ cats.index(c) }} {% endfor %}"
-           data-errors="{{ s.errors }}">
+           data-worst="{{ s.worst.rank if s.worst else 2 }}">
     <summary>
       <span class="stitle">{{ s.title }}</span>
       <span class="counts">
-        {% if s.errors %}<span class="tag error">{{ s.errors }} error{{ 's' if s.errors != 1 }}</span>{% endif %}
+        {% if s.errors %}<span class="tag error">{{ s.errors }} must correct</span>{% endif %}
+        {% if s.recommended %}<span class="tag recommended">{{ s.recommended }} recommended</span>{% endif %}
         {% if s.warnings %}<span class="tag warning">{{ s.warnings }} warning{{ 's' if s.warnings != 1 }}</span>{% endif %}
       </span>
     </summary>
     <ol class="issues">
       {% for i in s.issues %}
-      <li class="{{ i.severity.value }}" data-cat="{{ cats.index(i.category) }}">
+      <li class="{{ i.severity.value }}" data-cat="{{ cats.index(i.category) }}" data-rank="{{ i.severity.rank }}">
         <div class="where">
           {% if i.line %}<span class="chip">Line {{ i.line }}</span>{% endif %}
           {% if i.position_label %}<span class="chip">{{ i.position_label }}</span>{% endif %}{% if i.path %}<span class="chip rec">{{ i.path }}</span>{% endif %}
           {% if i.record %}<span class="chip rec">{{ i.record }}</span>{% endif %}
-          <span class="tag {{ i.severity.value }}">{{ i.severity.value }}</span>
+          <span class="tag {{ i.severity.value }}">{{ i.severity.label }}</span>
         </div>
         <p>{{ i.message }}{% if i.page %} <span class="page">Guide p.{{ i.page }}</span>{% endif %}</p>
       </li>
@@ -110,7 +127,7 @@
 (() => {
   const sections = [...document.querySelectorAll('details.section')];
   const search = document.getElementById('search');
-  const errorsOnly = document.getElementById('errors-only');
+  const level = document.getElementById('level');
   const note = document.getElementById('filter-note');
   let cat = null;
 
@@ -122,15 +139,16 @@
       const lines = [...s.querySelectorAll('.chip')].map(c => c.textContent.toLowerCase());
       let show = !q || text.includes(q) || lines.some(l => l === 'line ' + q);
       if (cat !== null && !s.dataset.cats.split(' ').includes(cat)) show = false;
-      if (errorsOnly?.checked && s.dataset.errors === '0') show = false;
+      const maxRank = Number(level?.value ?? 2);
+      if (Number(s.dataset.worst) > maxRank) show = false;
       s.hidden = !show;
       for (const li of s.querySelectorAll('li')) {
-        li.hidden = (cat !== null && li.dataset.cat !== cat) || (errorsOnly?.checked && li.classList.contains('warning'));
+        li.hidden = (cat !== null && li.dataset.cat !== cat) || Number(li.dataset.rank) > maxRank;
       }
       if (show) visible++;
     }
     if (note) {
-      note.hidden = !(q || cat !== null || errorsOnly?.checked);
+      note.hidden = !(q || cat !== null || Number(level?.value ?? 2) < 2);
       note.textContent = `${visible} of ${sections.length} sections shown`;
     }
   }
@@ -151,7 +169,7 @@
     tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
   });
   search?.addEventListener('input', apply);
-  errorsOnly?.addEventListener('change', apply);
+  level?.addEventListener('change', apply);
   document.getElementById('expand')?.addEventListener('click', () => sections.forEach(s => { if (!s.hidden) s.open = true; }));
   document.getElementById('collapse')?.addEventListener('click', () => sections.forEach(s => s.open = false));
 })();

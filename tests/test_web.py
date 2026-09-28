@@ -21,12 +21,12 @@ def test_upload_page():
 def test_valid_file_report():
     r = upload(build_file())
     assert r.status_code == 200
-    assert "No errors found" in r.text
+    assert "Nothing must be corrected" in r.text
 
 
 def test_report_lists_errors_and_pdf_downloads():
     r = upload(build_file(account(0, mtr=dict(meter_category="X"))))
-    assert "1 error found" in r.text and "Meter Category" in r.text
+    assert "1 problem must be corrected" in r.text and "Meter Category" in r.text
     [pdf_url] = re.findall(r'action="([^"]*/report/[^"]+\.pdf)"', r.text)
     pdf = client.get(pdf_url)
     assert pdf.status_code == 200 and pdf.headers["content-type"] == "application/pdf"
@@ -94,3 +94,9 @@ def _pdf_text(content: bytes) -> bytes:
         except zlib.error:
             pass
     return out
+
+
+def test_highly_recommended_level_is_shown():
+    r = upload(build_file(account(0, cus=dict(segment_code="0000"))))
+    assert "Nothing must be corrected, but 1 correction is highly recommended" in r.text
+    assert '<span class="tag recommended">Highly recommended</span>' in r.text

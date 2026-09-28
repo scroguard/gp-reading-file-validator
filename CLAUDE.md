@@ -188,7 +188,12 @@ Still enforced:
   - Wand Program values include SR00.
   - WRR Device ID may be numeric.
 
-**Severity: warning, not error,** where the guide says MV-RS continues the import or FCS accepted it. That covers:
+**Three severity levels** (`issues.Severity`), shown as categories in the report and PDF:
+- **Must correct** (`ERROR`): the import fails or the data is wrong.
+- **Highly recommended** (`RECOMMENDED`): accepted by some target systems but likely to cause problems in others, e.g. a psrec Segment Code of `0`, which FCS accepts but may break Temetra.
+- **Warning** (`WARNING`): for reference; the file imports as intended.
+
+**Warning, not error,** where the guide says MV-RS continues the import or FCS accepted it. That covers:
 - Wrong record length.
 - Pad bytes that aren't blank.
 - Header/trailer mismatches.

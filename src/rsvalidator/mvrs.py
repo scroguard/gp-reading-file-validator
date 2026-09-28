@@ -452,7 +452,7 @@ class RuleChecker:
             label = rec.spec.field(fname).label
             self.add(_field_issue(
                 "total-mismatch" if warning else "count-mismatch",
-                f"{label} does not match file contents" + (" (warning)" if warning else ""),
+                f"{label} does not match file contents",
                 rec, fname,
                 f"It says {int(raw)}, but " + what.format(actual=actual) + "." + (f" {warning}" if warning else ""),
                 severity=Severity.WARNING if warning else Severity.ERROR, page=page))
@@ -582,8 +582,11 @@ class RuleChecker:
             indicator_rules(a.cus, {"CSX": a.csx})
             self.count_check(a.cus, "number_of_meters", len(a.meters), "{actual} Meter (MTR) record(s) follow before the next Customer record (it must match exactly, p.70)", page=70)
             if a.cus.val("segment_code") and set(a.cus.val("segment_code")) == {"0"}:
+                # FCS imports this without complaint (confirmed by the user), but it may cause problems in Temetra.
                 self.add(_field_issue("segment-all-zeros", "Segment Code is all zeros", a.cus, "segment_code",
-                                      "The Segment Code cannot be all zeros (p.80).", page=80))
+                                      "The guide says the Segment Code cannot be all zeros (p.80). FCS accepts it, but "
+                                      "it may cause problems when the file is imported into Temetra.",
+                                      severity=Severity.RECOMMENDED, page=80))
             for m in a.meters:
                 totals["meters"] += 1
                 mtr = m.mtr

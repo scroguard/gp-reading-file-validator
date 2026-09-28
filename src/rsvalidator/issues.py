@@ -7,8 +7,17 @@ from enum import Enum
 
 
 class Severity(str, Enum):
-    ERROR = "error"
-    WARNING = "warning"
+    ERROR = "error"  # must be corrected: the import fails or data is wrong
+    RECOMMENDED = "recommended"  # highly recommend correcting: accepted by some target systems, not others
+    WARNING = "warning"  # for reference
+
+    @property
+    def label(self) -> str:
+        return {"error": "Must correct", "recommended": "Highly recommended", "warning": "Warning"}[self.value]
+
+    @property
+    def rank(self) -> int:
+        return {"error": 0, "recommended": 1, "warning": 2}[self.value]
 
 
 @dataclass

@@ -35,8 +35,16 @@ class Section:
         return sum(i.severity == Severity.ERROR for i in self.issues)
 
     @property
+    def recommended(self) -> int:
+        return sum(i.severity == Severity.RECOMMENDED for i in self.issues)
+
+    @property
     def warnings(self) -> int:
         return sum(i.severity == Severity.WARNING for i in self.issues)
+
+    @property
+    def worst(self) -> Severity | None:
+        return min((i.severity for i in self.issues), key=lambda s: s.rank, default=None)
 
 
 @dataclass
@@ -63,6 +71,10 @@ class Report:
     @property
     def errors(self) -> int:
         return sum(s.errors for s in self.sections)
+
+    @property
+    def recommended(self) -> int:
+        return sum(s.recommended for s in self.sections)
 
     @property
     def warnings(self) -> int:
@@ -157,7 +169,7 @@ def _build_report(filename: str, format_name: str, guide: str, grouping: Groupin
     for leftover in buckets.values():  # owner index with no section; keep the issues visible
         sections[0].issues.extend(leftover)
     for s in sections:
-        s.issues.sort(key=lambda i: (i.line or 0, i.start or i.column or 0, i.severity != Severity.ERROR))
+        s.issues.sort(key=lambda i: (i.line or 0, i.start or i.column or 0, i.severity.rank))
 
     rows: dict[tuple[str, Severity], SummaryRow] = {}
     for s in sections:
@@ -173,7 +185,7 @@ def _build_report(filename: str, format_name: str, guide: str, grouping: Groupin
             if s.kind == "account" and k not in seen_here:
                 row.accounts += 1
                 seen_here.add(k)
-    summary = sorted(rows.values(), key=lambda r: (r.severity != Severity.ERROR, -r.count, r.category))
+    summary = sorted(rows.values(), key=lambda r: (r.severity.rank, -r.count, r.category))
 
     return Report(
         filename=filename,

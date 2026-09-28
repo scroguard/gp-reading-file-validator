@@ -9,7 +9,9 @@ from .engine import Report
 from .issues import Severity
 
 ERROR_RGB = (180, 35, 24)
-WARN_RGB = (138, 90, 0)
+REC_RGB = (154, 74, 0)
+WARN_RGB = (93, 103, 120)
+COLORS = {Severity.ERROR: ERROR_RGB, Severity.RECOMMENDED: REC_RGB, Severity.WARNING: WARN_RGB}
 MUTED_RGB = (93, 103, 120)
 LINE_RGB = (221, 226, 234)
 
@@ -67,12 +69,17 @@ def render_pdf(report: Report, customer: str = "") -> bytes:
     pdf.ln(3)
 
     pdf.set_font("Helvetica", "B", 11)
-    if report.valid:
-        pdf.set_text_color(26, 127, 55)
-        verdict = "No errors found."
-    else:
+    if report.errors:
         pdf.set_text_color(*ERROR_RGB)
-        verdict = f"{report.errors:,} error(s) found."
+        verdict = f"{report.errors:,} problem(s) must be corrected."
+    elif report.recommended:
+        pdf.set_text_color(*REC_RGB)
+        verdict = "Nothing must be corrected."
+    else:
+        pdf.set_text_color(26, 127, 55)
+        verdict = "Nothing must be corrected."
+    if report.recommended:
+        verdict += f" {report.recommended:,} correction(s) highly recommended."
     if report.warnings:
         verdict += f" {report.warnings:,} warning(s)."
     pdf.cell(0, 6, _t(verdict), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
@@ -80,27 +87,39 @@ def render_pdf(report: Report, customer: str = "") -> bytes:
     pdf.set_font("Helvetica", "", 9)
     pdf.cell(0, 5, _t(
         f"Lines: {report.line_count:,}    Routes: {report.route_count}    Accounts: {report.account_count:,}    "
-        f"Accounts with errors: {report.accounts_with_errors:,}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-    pdf.ln(4)
+        f"Accounts to correct: {report.accounts_with_errors:,}"), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.ln(2)
+    pdf.set_font("Helvetica", "", 8.5)
+    for sev, text in ((Severity.ERROR, "the import fails or the data is wrong."),
+                      (Severity.RECOMMENDED, "accepted by some systems (e.g. FCS) but may cause problems in others "
+                                             "(e.g. Temetra or MV-RS)."),
+                      (Severity.WARNING, "worth knowing; the file imports as intended.")):
+        pdf.set_text_color(*COLORS[sev])
+        pdf.set_font("Helvetica", "B", 8.5)
+        pdf.cell(36, 4.6, sev.label)
+        pdf.set_text_color(0)
+        pdf.set_font("Helvetica", "", 8.5)
+        pdf.cell(0, 4.6, _t(text), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.ln(3)
 
     if report.summary:
         pdf.set_font("Helvetica", "B", 12)
         pdf.cell(0, 7, "Summary", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         pdf.set_font("Helvetica", "", 8.5)
         with pdf.table(
-            col_widths=(92, 18, 24, 20, 20),
+            col_widths=(84, 30, 22, 18, 20),
             text_align=("LEFT", "LEFT", "RIGHT", "RIGHT", "RIGHT"),
             line_height=4.6,
             borders_layout="HORIZONTAL_LINES",
             headings_style=FontFace(emphasis="BOLD", color=MUTED_RGB),
         ) as table:
             head = table.row()
-            for h in ("Problem", "Type", "Occurrences", "Accounts", "First line"):
+            for h in ("Problem", "Category", "Occurrences", "Accounts", "First line"):
                 head.cell(h)
             for r in report.summary:
                 row = table.row()
                 row.cell(_t(r.category))
-                row.cell(r.severity.value)
+                row.cell(r.severity.label)
                 row.cell(f"{r.count:,}")
                 row.cell(f"{r.accounts:,}" if r.accounts else "-")
                 row.cell(str(r.first_line or "-"))
@@ -120,7 +139,7 @@ def render_pdf(report: Report, customer: str = "") -> bytes:
         pdf.line(pdf.l_margin, pdf.get_y(), pdf.l_margin + width, pdf.get_y())
         pdf.ln(1.5)
         pdf.set_font("Helvetica", "B", 10)
-        kind = "errors" if section.errors else "warnings"
+        kind = "problems" if section.errors or section.recommended else "warnings"
         pdf.multi_cell(width, 5, _t(f"{section.title} contains the following {kind}:"),
                        align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         for issue in section.issues:
@@ -132,9 +151,9 @@ def render_pdf(report: Report, customer: str = "") -> bytes:
             ) if x)
             pdf.set_x(pdf.l_margin + 4)
             pdf.set_font("Helvetica", "B", 8.5)
-            pdf.set_text_color(*(ERROR_RGB if issue.severity == Severity.ERROR else WARN_RGB))
-            label = issue.severity.value.upper()
-            pdf.cell(18, 4.6, label)
+            pdf.set_text_color(*COLORS[issue.severity])
+            pdf.cell(18, 4.6, {Severity.ERROR: "MUST FIX", Severity.RECOMMENDED: "RECOMMEND",
+                               Severity.WARNING: "WARNING"}[issue.severity])
             pdf.set_text_color(*MUTED_RGB)
             pdf.cell(0, 4.6, _t(where), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.set_text_color(0)
