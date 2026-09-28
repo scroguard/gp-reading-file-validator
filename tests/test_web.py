@@ -106,7 +106,7 @@ def test_corrected_temetra_csv_can_be_downloaded():
     from test_temetra import row, tcsv
     content = tcsv([row(0), row(1, CREF="C000", METERSERIAL="1234567", METERUNITS="kW")])
     r = client.post("/validate", data={"format": "temetra-csv"}, files={"file": ("assets.csv", content, "text/csv")})
-    assert "Corrected file available" in r.text and "Corrections made in the corrected file" in r.text
+    assert "Validation Report &amp; Corrected Import File Available" in r.text and "Corrections made in the corrected file" in r.text
     [url] = re.findall(r'href="([^"]*/corrected\.csv)"', r.text)
     got = client.get(url)
     assert got.status_code == 200 and 'filename="assets-corrected.csv"' in got.headers["content-disposition"]
@@ -118,4 +118,4 @@ def test_corrected_temetra_csv_can_be_downloaded():
 def test_no_corrected_file_without_duplicates():
     from test_temetra import tcsv
     r = client.post("/validate", data={"format": "temetra-csv"}, files={"file": ("a.csv", tcsv(), "text/csv")})
-    assert "Corrected file available" not in r.text
+    assert "Corrected Import File" not in r.text and "Validation Report Available" in r.text

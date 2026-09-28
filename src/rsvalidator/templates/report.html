@@ -13,11 +13,6 @@
       <p class="muted">Checked {{ report.created.strftime('%B %-d, %Y at %-I:%M %p') }} against {{ report.guide }}</p>
     </div>
     <div class="actions">
-      <form class="pdf-form" method="get" action="{{ url_for('report_pdf', token=token).path }}">
-        <label for="customer" class="sr">Customer name for the PDF</label>
-        <input type="text" id="customer" name="customer" maxlength="100" placeholder="Customer name (for the PDF)">
-        <button type="submit" class="btn primary">Download PDF</button>
-      </form>
       <a class="btn" href="{{ url_for('index').path }}">Validate another file</a>
     </div>
   </div>
@@ -42,35 +37,39 @@
   </dl>
 </section>
 
-{% if report.corrected %}
 {% set fx = report.corrected %}
-<section class="card corrected">
-  <div class="head-row">
-    <div>
-      <h2>Corrected file available</h2>
-      <p>{{ '{:,}'.format(fx.count) }} row{{ 's were' if fx.count != 1 else ' was' }} corrected automatically. Each is a
-        second register of a meter (for example kW demand) that repeated the main meter's CREF and meter serial, so
-        Temetra would have overwritten the main meter and lost its reading. Following Itron's example, each extra register
-        now has:</p>
-      <ul>
-        <li>a <strong>-1</strong>, <strong>-2</strong>, &hellip; suffix on its CREF and meter serial,</li>
-        <li><strong>LINKEDMETERSERIAL</strong> set to the original meter serial, and</li>
-        <li>an <strong>original-meter-serial=</strong> tag in ADDTAG.</li>
-      </ul>
-      {% if fx.added_columns %}<p class="muted">Added column{{ 's' if fx.added_columns|length > 1 }}: {{ fx.added_columns|join(', ') }}.</p>{% endif %}
-      <p class="muted">Every other row is unchanged. Each account below lists the exact changes made to it.
-        {% if fx.errors_after %}The corrected file still has {{ fx.errors_after }} problem{{ 's' if fx.errors_after != 1 }}
-        that must be corrected by hand, listed below without a "Corrected automatically" note.
-        {% else %}The corrected file has no problems that must be corrected{% if fx.recommended_after %}
-        ({{ fx.recommended_after }} highly recommended){% endif %}.{% endif %}
-        Correct the export process as well, so future files come out this way.</p>
-    </div>
-    <div class="actions">
-      <a class="btn primary" href="{{ url_for('corrected_csv', token=token).path }}">Download corrected CSV</a>
-    </div>
+<section class="card downloads{{ ' corrected' if fx }}">
+  <h2>{{ 'Validation Report & Corrected Import File Available' if fx else 'Validation Report Available' }}</h2>
+  <div class="download-row">
+    <form class="pdf-form" method="get" action="{{ url_for('report_pdf', token=token).path }}">
+      <label for="customer" class="sr">Customer name for the PDF</label>
+      <input type="text" id="customer" name="customer" maxlength="100" placeholder="Customer name (for the PDF)">
+      <button type="submit" class="btn primary">Download PDF report</button>
+    </form>
+    {% if fx %}
+    <a class="btn primary" href="{{ url_for('corrected_csv', token=token).path }}">Download corrected import file (CSV)</a>
+    {% endif %}
   </div>
+  {% if fx %}
+  <p>{{ '{:,}'.format(fx.count) }} row{{ 's were' if fx.count != 1 else ' was' }} corrected automatically in the import file.
+    Each is a second register of a meter (for example kW demand) that repeated the main meter's CREF and meter serial,
+    so Temetra would have overwritten the main meter and lost its reading. Following Itron's example, each extra register
+    now has:</p>
+  <ul>
+    <li>a <strong>-1</strong>, <strong>-2</strong>, &hellip; suffix on its CREF and meter serial,</li>
+    <li><strong>LINKEDMETERSERIAL</strong> set to the original meter serial, and</li>
+    <li>an <strong>original-meter-serial=</strong> tag in ADDTAG.</li>
+  </ul>
+  {% if fx.added_columns %}<p class="muted">Added column{{ 's' if fx.added_columns|length > 1 }}: {{ fx.added_columns|join(', ') }}.</p>{% endif %}
+  <p class="muted">Every other row is unchanged. Each account below lists the exact changes made to it, and the PDF
+    report includes the same list.
+    {% if fx.errors_after %}The corrected file still has {{ fx.errors_after }} problem{{ 's' if fx.errors_after != 1 }}
+    that must be corrected by hand, listed below without a "Corrected automatically" note.
+    {% else %}The corrected file has no problems that must be corrected{% if fx.recommended_after %}
+    ({{ fx.recommended_after }} highly recommended){% endif %}.{% endif %}
+    Correct the export process as well, so future files come out this way.</p>
+  {% endif %}
 </section>
-{% endif %}
 
 {% if report.summary %}
 <section class="card">

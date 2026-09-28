@@ -164,7 +164,8 @@ details.section[open] > summary::before { content: "▾"; }
   border-radius: 0 6px 6px 0; }
 .clean { margin-top: 1rem; }
 .card.corrected { border-left: 4px solid var(--accent); }
-.card.corrected ul { margin: .4rem 0; padding-left: 1.2rem; }
+.card.downloads ul { margin: .4rem 0; padding-left: 1.2rem; }
+.download-row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; margin: .6rem 0 .8rem; }
 .corrections { margin: 0 1rem .9rem 2.2rem; padding: .6rem .8rem; background: var(--chip); border-radius: 8px; }
 .corrections h3 { font-size: .9rem; margin: 0 0 .3rem; }
 .corrections ul { margin: 0; padding-left: 1.1rem; }
