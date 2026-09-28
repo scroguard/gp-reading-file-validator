@@ -1,0 +1,26 @@
+services:
+  validator:
+    build: .
+    image: rsvalidator:latest
+    container_name: rsvalidator
+    restart: unless-stopped
+    ports:
+      # STRONGLY RECOMMENDED (default): publish on localhost only. Uploaded files
+      # contain customer names and addresses, and the app has no login of its own.
+      # Put a reverse proxy on this host (reached over your VPN) in front of it to
+      # handle authentication and TLS, and point the proxy at 127.0.0.1:8080.
+      - "127.0.0.1:8080:8000"
+      #
+      # ALTERNATIVE: if you run this only on a local network you trust and want
+      # to reach it directly without a proxy, comment out the line above and use
+      # the line below instead. Anyone who can reach this port can use the app.
+      # - "8080:8000"
+    environment:
+      RSV_MAX_UPLOAD_MB: "50"          # largest file accepted
+      RSV_REPORT_TTL_MINUTES: "30"     # how long a report stays downloadable as PDF
+      RSV_MAX_CACHED_REPORTS: "20"     # reports kept in memory at once
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true

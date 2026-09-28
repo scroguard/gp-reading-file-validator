@@ -1,0 +1,410 @@
+# MV-RS Host Download file (standard fixed-width format).
+#
+# Source: Itron "MV-RS Host Interface Requirements" TDC-0341-024 (March 2016),
+# Chapter 1 "Host Download Files" (printed pages 1-25) and Chapter 3 "Data
+# Definitions" (printed pages 49-103). `page` values below are printed page
+# numbers in that guide.
+#
+# Field keys:
+#   start/end   1-based inclusive byte positions, as printed in the guide
+#   type        A | AN | N | D | T   (guide types A, A/N, N, D, T)
+#   required    true | false | trailer  (trailer = required only in the trailer
+#               record of a header/trailer pair, e.g. RTR but not RHD)
+#   values      allowed values (after trimming trailing blanks); "" = blank
+#   charset     overrides the type's default character set (see `charsets`)
+#   mixed_case  lowercase letters allowed (names, addresses, messages,
+#               descriptions - guide p.1); otherwise letters must be uppercase
+#   range       [min, max] numeric range for N fields
+#   pad         filler bytes; must be blank
+#   note        why a field deviates from the guide's general conventions
+#   reserved    contents not checked (FCS accepts data in reserved bytes)
+#   leading_spaces  may start with blanks: addresses (street-number sub-field,
+#               Address 2 continuations) and free-form messages/descriptions.
+#               Other A and A/N fields, including names and account numbers,
+#               must be left-justified.
+
+format: MV-RS Host Download
+guide: Itron MV-RS Host Interface Requirements TDC-0341-024 (March 2016)
+line_length: 128          # 126 data bytes + CR/LF in bytes 127-128 (p.1)
+data_length: 126
+
+# Second record of each header/trailer pair; `required: trailer` fields are
+# required only in these.
+trailer_ids: [FTR, CTR, RTR, ERT]
+
+# Cross-record rules, interpreted by rsvalidator/mvrs.py.
+rules:
+  # Indicator field on a record -> child record that must follow it (Y) or
+  # must not (N/blank). Both directions are errors (guide p.13-18).
+  child_indicators:
+    - {parent: [RHD, ERH], field: survey_indicator, child: RTS, page: 13}
+    - {parent: [RHD, ERH], field: route_message_indicator, child: RTM, page: 13}
+    - {parent: [CUS], field: customer_extra_indicator, child: CSX, page: 15}
+    - {parent: [MTR], field: mtx_indicator, child: MTX, page: 18}
+    - {parent: [MTR], field: special_message_indicator, child: MTS, page: 18}
+  # Reading Read Method -> the record that supplies the reading (p.19-24).
+  # RFF/WRR belong to the reading; PRB belongs to the meter (layout diagram, p.2).
+  read_method_records:
+    P: PRB
+    R: RFF
+    W: WRR
+  # File header indicators -> record present anywhere in the file (p.7-8).
+  # A record present while its indicator is N is an error. An indicator of Y
+  # with no records is a warning: the guide says import continues.
+  file_indicators:
+    - {field: tables_indicator, records: [FC, ML, MT, RI, RT, SC, TC], page: 83}
+    - {field: optical_probe_indicator, records: [PRB], page: 71}
+    - {field: offsite_indicator, records: [RFF], page: 71}
+    - {field: wand_indicator, records: [WRR], page: 103}
+    - {field: extended_route_indicator, records: [ERH, ERT], page: 57}
+
+charsets:
+  A:
+    label: alphabetic
+    chars: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz "
+  AN:
+    label: alphanumeric
+    chars: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 "
+  N:
+    label: numeric
+    chars: "0123456789"
+  # Free-form text: names/addresses/messages/descriptions. The Special Message
+  # Text definition (p.81) lists every printable ASCII punctuation character as
+  # allowed; the same set is used for the other free-text fields.
+  text:
+    label: text (letters, digits, spaces and printable punctuation)
+    chars: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 +<-'|>~*:,#/;.\"?_`()!$\\%=&@{}^[]"
+  # Latitude/longitude, e.g. "45.9539084", "-109.83039217" (p.18).
+  coordinate:
+    label: decimal degrees (digits, '.', '-')
+    chars: "0123456789.-"
+  # RF Frequency. The guide shows it as "000952.00625" (p.78); real files
+  # accepted by FCS carry digits only, so the decimal point is optional.
+  frequency:
+    label: numeric with decimal point
+    chars: "0123456789."
+  # Time Zone Adjustment may carry a leading + or - (p.96).
+  signed:
+    label: numeric with optional leading sign
+    chars: "0123456789+-"
+
+# The route number repeats in most records and follows special rules (p.79).
+route_number: &route_number
+  name: route_number
+  label: Route Number
+  start: 4
+  end: 11
+  type: AN
+  required: true
+  check: route_number
+  page: 79
+
+records:
+  - ids: [FHD, FTR]
+    name: File Header/Trailer
+    page: 7
+    fields:
+      - {name: tables_indicator, label: Tables Indicator, start: 4, end: 4, type: A, required: true, values: [Y, N], page: 83}
+      - {name: optical_probe_indicator, label: Optical Probe (PRB) Record Indicator, start: 5, end: 5, type: A, required: true, values: [Y, N], page: 71}
+      - {name: version_number_of_tables, label: Version Number of Tables, start: 6, end: 10, type: AN, page: 102}
+      - {name: reserved_1, label: Reserved, start: 11, end: 13, type: A, reserved: true}
+      - {name: number_of_cycles, label: Number of Cycles, start: 14, end: 15, type: N, required: trailer, page: 69,
+         note: "Only required in the File Trailer (p.69)."}
+      - {name: offsite_indicator, label: Off-site (RFF) Record Indicator, start: 16, end: 16, type: A, required: true, values: [Y, N], page: 71}
+      - {name: wand_indicator, label: Wand (WRR) Record Indicator, start: 17, end: 17, type: A, required: true, values: [Y, N], page: 103}
+      - {name: extended_route_indicator, label: Extended Route Header/Trailer Format Indicator, start: 18, end: 18, type: A, required: true, values: [Y, N], page: 57}
+      - {name: pad, label: Pad, start: 19, end: 126, type: AN, pad: true}
+
+  # Table records: the Record ID is a two-letter table code (p.77) in a
+  # three-byte field. Never observed in sample files.
+  - ids: [FC, ML, MT, RI, RT, SC, TC]
+    name: Table
+    page: 8
+    fields:
+      - {name: reserved_1, label: Reserved, start: 4, end: 8, type: AN, reserved: true}
+      - {name: priority_codes, label: Priority Code, start: 9, end: 13, type: AN, page: 73,
+         note: "Marked Required on p.8, but p.73 says FC, MT, RT and TC tables do not use it."}
+      - {name: text_translation, label: Text Translation, start: 14, end: 98, type: AN, required: true, charset: text, mixed_case: true, leading_spaces: true, page: 89}
+      - {name: pad, label: Pad, start: 99, end: 126, type: AN, pad: true}
+
+  - ids: [CHD, CTR]
+    name: Cycle Header/Trailer
+    page: 9
+    fields:
+      - {name: cycle_id, label: Cycle ID Number, start: 4, end: 5, type: N, required: true, range: [1, 99], page: 54,
+         note: "Cycle 00 is not a valid import cycle (p.54)."}
+      - {name: number_of_routes, label: Number of Routes in Cycle, start: 6, end: 9, type: N, required: true, page: 70}
+      - {name: cycle_date, label: Cycle Date, start: 10, end: 17, type: D, page: 54}
+      - {name: reserved_1, label: Reserved, start: 18, end: 25, type: AN, reserved: true}
+      - {name: pad, label: Pad, start: 26, end: 126, type: AN, pad: true}
+
+  - ids: [RHD, RTR]
+    name: Standard Route Header/Trailer
+    page: 9
+    fields:
+      - *route_number
+      - {name: survey_indicator, label: Survey Indicator, start: 12, end: 12, type: A, required: true, values: [Y, N], page: 82}
+      - {name: route_message_indicator, label: Route Message Indicator, start: 13, end: 13, type: A, required: true, values: [Y, N], page: 80}
+      - {name: total_keys, label: Total Number of Keys, start: 14, end: 17, type: N, page: 97}
+      - {name: total_reading_records, label: Total Number of Reading Records, start: 18, end: 21, type: N, required: trailer, page: 98}
+      - {name: total_demand_meters, label: Total Number of Demand Meters, start: 22, end: 25, type: N, page: 96}
+      - {name: total_keyed_readings, label: Total Number of Keyed Readings, start: 26, end: 29, type: N, page: 97}
+      - {name: total_optical_probe_readings, label: Total Number of Optical Probe Readings, start: 30, end: 33, type: N, page: 97}
+      - {name: total_offsite_readings, label: Total Number of Off-site (Radio) Readings, start: 34, end: 37, type: N, page: 97}
+      - {name: total_customer_records, label: Total Number of Customer Records, start: 38, end: 41, type: N, required: trailer, page: 96}
+      - {name: total_meter_records, label: Total Number of Meter Records, start: 42, end: 45, type: N, required: trailer, page: 97}
+      - {name: time_allotted, label: Time Allotted for Route, start: 46, end: 51, type: T, page: 95}
+      - {name: total_gas_meters, label: Total Number of Gas Meters, start: 52, end: 55, type: N, page: 96}
+      - {name: total_water_meters, label: Total Number of Water Meters, start: 56, end: 59, type: N, page: 98}
+      - {name: total_electric_meters, label: Total Number of Electric Meters, start: 60, end: 63, type: N, page: 96}
+      - {name: total_location_meters, label: Total Number of Location Meters, start: 64, end: 67, type: N, page: 97}
+      - {name: total_extra_meters, label: Total Number of Extra Meters, start: 68, end: 71, type: N, page: 96}
+      - {name: region, label: Region, start: 72, end: 73, type: AN, page: 77}
+      - {name: zone, label: Zone, start: 74, end: 75, type: AN, page: 103}
+      - {name: office, label: Office, start: 76, end: 77, type: AN, page: 71}
+      - {name: bill_cycle, label: Bill Cycle, start: 78, end: 79, type: N, page: 52}
+      - {name: drop_cycle, label: Drop Cycle, start: 80, end: 81, type: N, page: 56}
+      - {name: total_wand_reads, label: Total Number of Remote Wand Reads, start: 82, end: 85, type: N, page: 98}
+      - {name: mobile_amr, label: Mobile AMR, start: 86, end: 86, type: A, values: ["M", ""], page: 65}
+      - {name: pad, label: Pad, start: 87, end: 126, type: AN, pad: true}
+
+  - ids: [ERH, ERT]
+    name: Extended Route Header/Trailer
+    page: 11
+    fields:
+      - *route_number
+      - {name: survey_indicator, label: Survey Indicator, start: 12, end: 12, type: A, required: true, values: [Y, N], page: 82}
+      - {name: route_message_indicator, label: Route Message Indicator, start: 13, end: 13, type: A, required: true, values: [Y, N], page: 80}
+      - {name: total_keys, label: Total Number of Keys, start: 14, end: 17, type: N, page: 97}
+      - {name: total_reading_records, label: Total Number of Reading Records, start: 18, end: 22, type: N, required: trailer, page: 98}
+      - {name: total_demand_meters, label: Total Number of Demand Meters, start: 23, end: 27, type: N, page: 96}
+      - {name: total_keyed_readings, label: Total Number of Keyed Readings, start: 28, end: 32, type: N, page: 97}
+      - {name: total_optical_probe_readings, label: Total Number of Optical Probe Readings, start: 33, end: 37, type: N, page: 97}
+      - {name: total_offsite_readings, label: Total Number of Off-site (Radio) Readings, start: 38, end: 42, type: N, page: 97}
+      - {name: total_customer_records, label: Total Number of Customer Records, start: 43, end: 47, type: N, required: trailer, page: 96}
+      - {name: total_meter_records, label: Total Number of Meter Records, start: 48, end: 52, type: N, required: trailer, page: 97}
+      - {name: time_allotted, label: Time Allotted for Route, start: 53, end: 58, type: T, page: 95}
+      - {name: total_gas_meters, label: Total Number of Gas Meters, start: 59, end: 63, type: N, page: 96}
+      - {name: total_water_meters, label: Total Number of Water Meters, start: 64, end: 68, type: N, page: 98}
+      - {name: total_electric_meters, label: Total Number of Electric Meters, start: 69, end: 73, type: N, page: 96}
+      - {name: total_location_meters, label: Total Number of Location Meters, start: 74, end: 78, type: N, page: 97}
+      - {name: total_extra_meters, label: Total Number of Extra Meters, start: 79, end: 83, type: N, page: 96}
+      - {name: region, label: Region, start: 84, end: 85, type: AN, page: 77}
+      - {name: zone, label: Zone, start: 86, end: 87, type: AN, page: 103}
+      - {name: office, label: Office, start: 88, end: 89, type: AN, page: 71}
+      - {name: bill_cycle, label: Bill Cycle, start: 90, end: 91, type: N, page: 52}
+      - {name: drop_cycle, label: Drop Cycle, start: 92, end: 93, type: N, page: 56}
+      - {name: total_wand_reads, label: Total Number of Remote Wand Reads, start: 94, end: 98, type: N, page: 98}
+      - {name: mobile_amr, label: Mobile AMR, start: 99, end: 99, type: A, values: ["M", ""], page: 65}
+      - {name: pad, label: Pad, start: 100, end: 126, type: AN, pad: true}
+
+  - ids: [RTS]
+    name: Route Header Survey
+    page: 13
+    fields:
+      - *route_number
+      - {name: survey_text_1, label: Survey Text 1, start: 12, end: 51, type: AN, charset: text, mixed_case: true, leading_spaces: true, page: 83}
+      - {name: survey_text_2, label: Survey Text 2, start: 52, end: 91, type: AN, charset: text, mixed_case: true, leading_spaces: true, page: 83}
+      - {name: pad, label: Pad, start: 92, end: 126, type: AN, pad: true}
+
+  - ids: [RTM]
+    name: Route Header Message
+    page: 13
+    fields:
+      - *route_number
+      - {name: route_message, label: Route Message, start: 12, end: 111, type: AN, required: true, charset: text, mixed_case: true, leading_spaces: true, page: 79}
+      - {name: pad, label: Pad, start: 112, end: 126, type: AN, pad: true}
+
+  - ids: [CUS]
+    name: Customer
+    page: 14
+    fields:
+      - *route_number
+      - {name: number_of_meters, label: Number of Meters, start: 12, end: 14, type: N, required: true, page: 70}
+      - {name: account_number, label: Account Number, start: 15, end: 34, type: AN, charset: text, page: 49,
+         note: "Typed A/N, but punctuation such as . and - is accepted by MV-RS and FCS (user decision)."}
+      - {name: name, label: Name, start: 35, end: 54, type: A, charset: text, mixed_case: true, page: 66,
+         note: "Typed A, but digits and punctuation in names are accepted by MV-RS and FCS (user decision)."}
+      - {name: address_1, label: Address 1, start: 55, end: 74, type: AN, charset: text, mixed_case: true, leading_spaces: true, page: 50}
+      - {name: address_2, label: Address 2, start: 75, end: 94, type: AN, charset: text, mixed_case: true, leading_spaces: true, page: 50}
+      - {name: reserved_1, label: Reserved, start: 95, end: 96, type: A, reserved: true}
+      - {name: group_code, label: Group Code, start: 97, end: 97, type: N, values: ["0", "1"], page: 58}
+      - {name: customer_information, label: Customer Information, start: 98, end: 117, type: AN, charset: text, mixed_case: true, leading_spaces: true, page: 54}
+      - {name: customer_extra_indicator, label: Customer Extra Record Indicator, start: 118, end: 118, type: A, required: true, values: [Y, N], page: 54}
+      - {name: segment_code, label: Segment Code, start: 119, end: 122, type: AN, page: 80}
+      - {name: utility_id, label: Utility ID, start: 123, end: 124, type: AN, page: 100}
+      - {name: pass_through, label: Pass-through Data, start: 125, end: 125, type: AN, page: 72}
+      - {name: pad, label: Pad, start: 126, end: 126, type: AN, pad: true}
+
+  - ids: [CSX]
+    name: Customer Extra
+    page: 15
+    fields:
+      - *route_number
+      - {name: account_number, label: Account Number, start: 12, end: 31, type: AN, charset: text, page: 49,
+         note: "Typed A/N, but punctuation such as . and - is accepted by MV-RS and FCS (user decision)."}
+      - {name: customer_name, label: Customer Name, start: 32, end: 51, type: A, charset: text, mixed_case: true, page: 54,
+         note: "Typed A, but digits and punctuation in names are accepted by MV-RS and FCS (user decision)."}
+      - {name: address_3, label: Address 3, start: 52, end: 71, type: AN, charset: text, mixed_case: true, leading_spaces: true, page: 50}
+      - {name: pad, label: Pad, start: 72, end: 126, type: AN, pad: true}
+
+  - ids: [MTR]
+    name: Meter
+    page: 15
+    fields:
+      - *route_number
+      - {name: number_of_readings, label: Number of Readings, start: 12, end: 14, type: N, required: true, page: 70}
+      - {name: reserved_1, label: Reserved, start: 15, end: 16, type: A, reserved: true}
+      - {name: group_code, label: Group Code, start: 17, end: 17, type: N, values: ["0", "1"], page: 59}
+      - {name: reserved_2, label: Reserved, start: 18, end: 25, type: AN, reserved: true}
+      - {name: survey_1_display, label: Survey Code 1 Display Indicator, start: 26, end: 26, type: N, values: ["0", "1", "2"], page: 82}
+      - {name: reserved_3, label: Reserved, start: 27, end: 28, type: A, reserved: true}
+      - {name: survey_2_display, label: Survey Code 2 Display Indicator, start: 29, end: 29, type: N, values: ["0", "1", "2"], page: 82}
+      - {name: bill_code, label: Bill Code, start: 30, end: 30, type: A, page: 52}
+      - {name: meter_status, label: Meter Status, start: 31, end: 31, type: A, required: true, values: [A, I, S], page: 64}
+      - {name: optical_probe_recorder_id, label: Optical Probe Recorder ID, start: 32, end: 45, type: AN, charset: text, page: 71,
+         note: "Defaults to the meter number (p.71), so it accepts the same punctuation (user decision)."}
+      - {name: meter_number, label: Meter Number, start: 46, end: 57, type: AN, required: true, charset: text, page: 64,
+         note: "Typed A/N, but punctuation such as . and - is accepted by MV-RS and FCS (user decision)."}
+      - {name: reserved_4, label: Reserved, start: 58, end: 59, type: A, reserved: true}
+      - {name: meter_type, label: Meter Type, start: 60, end: 61, type: N, page: 65}
+      - {name: meter_read_sequence, label: Meter Read Sequence, start: 62, end: 69, type: N, required: true, page: 64}
+      - {name: meter_information, label: Meter Information, start: 70, end: 89, type: AN, charset: text, mixed_case: true, leading_spaces: true, page: 63}
+      - {name: reserved_5, label: Reserved, start: 90, end: 90, type: A, reserved: true}
+      - {name: meter_location, label: Meter Location, start: 91, end: 92, type: N, page: 63}
+      - {name: reserved_6, label: Reserved, start: 93, end: 93, type: A, reserved: true}
+      - {name: read_instruction_1, label: Read Instruction 1, start: 94, end: 95, type: N, page: 75}
+      - {name: reserved_7, label: Reserved, start: 96, end: 96, type: A, reserved: true}
+      - {name: read_instruction_2, label: Read Instruction 2, start: 97, end: 98, type: N, page: 76}
+      - {name: special_message_display, label: Special Message Display Indicator, start: 99, end: 99, type: N, values: ["0", "1", "2", "3"], page: 80,
+         note: "Record table lists 1-3; the definition (p.80) adds 0 = no special message (default)."}
+      - {name: mtx_indicator, label: MTX Record Indicator, start: 100, end: 100, type: A, values: [Y, N], page: 65}
+      - {name: special_message_indicator, label: Special Message Indicator, start: 101, end: 101, type: A, required: true, values: [Y, N], page: 81}
+      - {name: meter_category, label: Meter Category, start: 102, end: 102, type: A, required: true, values: [E, G, I, S, W], page: 62}
+      - {name: location_extra_meter, label: Location/Extra Meter, start: 103, end: 103, type: A, values: [L, E, ""], page: 60}
+      - {name: time_code, label: Time Code, start: 104, end: 106, type: N, page: 95}
+      - {name: meter_audit_1, label: Meter Audit 1, start: 107, end: 108, type: AN, page: 61}
+      - {name: meter_audit_2, label: Meter Audit 2, start: 109, end: 110, type: AN, page: 61}
+      - {name: meter_audit_3, label: Meter Audit 3, start: 111, end: 111, type: AN, page: 61}
+      - {name: meter_audit_4, label: Meter Audit 4, start: 112, end: 112, type: AN, page: 61}
+      - {name: pad, label: Pad, start: 113, end: 126, type: AN, pad: true}
+
+  - ids: [MTX]
+    name: Meter Extra
+    page: 18
+    fields:
+      - *route_number
+      - {name: meter_number, label: Meter Number, start: 12, end: 23, type: AN, required: true, charset: text, page: 64,
+         note: "Typed A/N, but punctuation such as . and - is accepted by MV-RS and FCS (user decision)."}
+      - {name: latitude, label: Latitude, start: 24, end: 40, type: AN, required: true, charset: coordinate, page: 18}
+      - {name: longitude, label: Longitude, start: 41, end: 57, type: AN, required: true, charset: coordinate, page: 18}
+      - {name: reserved_1, label: Reserved, start: 58, end: 69, type: AN, reserved: true}
+      - {name: pad, label: Pad, start: 70, end: 126, type: AN, pad: true}
+
+  - ids: [MTS]
+    name: Meter Special Text
+    page: 18
+    fields:
+      - *route_number
+      - {name: meter_number, label: Meter Number, start: 12, end: 23, type: AN, required: true, charset: text, page: 64,
+         note: "Typed A/N, but punctuation such as . and - is accepted by MV-RS and FCS (user decision)."}
+      - {name: special_message_text, label: Special Message Text, start: 24, end: 123, type: AN, charset: text, mixed_case: true, leading_spaces: true, page: 81,
+         note: "Marked Required, but a blank MTS is accepted (user decision): MV-RS ignores it and some billing systems always send one. The MTR Special Message Indicator must still be Y (checked in mvrs.py)."}
+      - {name: pad, label: Pad, start: 124, end: 126, type: AN, pad: true}
+
+  - ids: [PRB]
+    name: Optical Probe
+    page: 19
+    fields:
+      - *route_number
+      - {name: optical_probe_recorder_id, label: Optical Probe Recorder ID, start: 12, end: 25, type: AN, required: true, charset: text, page: 71,
+         note: "Defaults to the meter number (p.71), so it accepts the same punctuation (user decision)."}
+      - {name: device_id, label: Device ID, start: 26, end: 45, type: AN, required: true, page: 55}
+      - {name: meter_config_id, label: Meter Config ID, start: 46, end: 53, type: AN, page: 63}
+      - {name: tim_name, label: TIM Name, start: 54, end: 57, type: AN, required: true, page: 89}
+      - {name: device_password, label: Device Password, start: 58, end: 77, type: AN, page: 55}
+      - {name: id_mismatch, label: ID Mismatch Indicator, start: 78, end: 78, type: A, required: true, values: [Y, N], page: 60}
+      - {name: daisy_chain, label: Daisy Chain Indicator, start: 79, end: 79, type: A, values: [Y, N], page: 55}
+      - {name: dst, label: Daylight Saving Time (DST) Indicator, start: 80, end: 80, type: A, values: [Y, N], page: 55}
+      - {name: communication_address, label: Communication Address, start: 81, end: 82, type: AN, page: 53}
+      - {name: time_zone_adjustment, label: Time Zone Adjustment, start: 83, end: 87, type: N, charset: signed, page: 96}
+      - {name: read_load_profile, label: Read Load Profile Indicator, start: 88, end: 88, type: A, values: [A, P, ""], page: 76,
+         note: "Marked required, but blank is a defined value (do not read load profile)."}
+      - {name: visual_read, label: Visual Read Indicator, start: 89, end: 89, type: A, required: true, values: [Y, N], page: 102}
+      - {name: tou_register_reads, label: TOU Register Reads Indicator, start: 90, end: 90, type: A, required: true, values: [Y, N], page: 98}
+      - {name: reset_demand, label: Reset Demand Indicator, start: 91, end: 91, type: A, required: true, values: [Y, N], page: 78}
+      - {name: dst_update, label: DST Update Indicator, start: 92, end: 92, type: A, required: true, values: [Y, N], page: 55}
+      - {name: status_check, label: Status Check Indicator, start: 93, end: 93, type: A, required: true, values: [Y, N], page: 82}
+      - {name: encoder_indicator, label: Encoder Indicator, start: 94, end: 94, type: A, required: true, values: [Y, N], page: 56}
+      - {name: encoder_types, label: Encoder Type (16 channels x 2), start: 95, end: 126, type: AN, page: 57}
+
+  - ids: [RDG]
+    name: Reading
+    page: 20
+    fields:
+      - *route_number
+      - {name: text_prompt, label: Text Prompt, start: 12, end: 15, type: AN, required: true, page: 89}
+      - {name: prompt_code, label: Prompt Code, start: 16, end: 16, type: A, required: true, values: [Y, N, M, F, P], page: 73}
+      - {name: read_direction, label: Read Direction, start: 17, end: 17, type: A, values: [L, R], page: 75}
+      - {name: compare_code, label: Compare Code, start: 18, end: 20, type: N, page: 53}
+      - {name: validation_code, label: Validation Code, start: 21, end: 23, type: N, values: ["000", "001", "002", "003", "004", "005", "006", "007", "008", "099", "101"], page: 100}
+      - {name: reserved_1, label: Reserved, start: 24, end: 24, type: A, reserved: true}
+      - {name: channel_number, label: Channel Number, start: 25, end: 26, type: N, page: 53}
+      - {name: number_of_dials, label: Number of Dials, start: 27, end: 28, type: N, required: true, range: [1, 10], page: 69}
+      - {name: number_of_decimals, label: Number of Decimals, start: 29, end: 30, type: N, required: true, page: 69}
+      - {name: read_method, label: Read Method, start: 31, end: 31, type: A, required: true, values: [K, N, P, R, W], page: 76}
+      - {name: previous_reading, label: Previous Reading, start: 32, end: 41, type: N, required: true, page: 72}
+      - {name: high1, label: High1, start: 42, end: 51, type: N, required: true, page: 59}
+      - {name: low1, label: Low1, start: 52, end: 61, type: N, required: true, page: 61}
+      - {name: meter_constant, label: Meter Constant, start: 62, end: 67, type: N, charset: frequency, page: 63,
+         note: "Typed N, but the definition says it may contain an embedded decimal (p.63)."}
+      - {name: constant_flag, label: Constant Flag, start: 68, end: 68, type: N, values: ["0", "1", "2"], page: 54}
+      - {name: hhf_position, label: HHF Position, start: 69, end: 69, type: N, values: ["0", "1", "2", "3"], page: 59,
+         note: "The guide lists 1-3; 0 is accepted as not used, like a blank (user decision)."}
+      - {name: positive_dial_creep, label: Positive Dial Creep, start: 70, end: 74, type: N, page: 56}
+      - {name: consecutive_estimates, label: Number of Consecutive Estimates, start: 75, end: 75, type: N, page: 69}
+      - {name: reserved_2, label: Reserved, start: 76, end: 76, type: A, reserved: true}
+      - {name: read_type, label: Read Type, start: 77, end: 78, type: N, page: 77,
+         note: "Marked Required, but FCS accepts it blank (user decision; MV-RS defaults it to 00)."}
+      - {name: maximum_percent, label: Maximum Percent, start: 79, end: 84, type: N, range: [0, 32767], page: 61}
+      - {name: minimum_percent, label: Minimum Percent, start: 85, end: 90, type: N, range: [0, 32767], page: 65}
+      - {name: negative_dial_creep, label: Negative Dial Creep, start: 91, end: 95, type: N, page: 56}
+      - {name: pad, label: Pad, start: 96, end: 126, type: AN, pad: true}
+
+  - ids: [WRR]
+    name: Remote (Wand) Read
+    page: 23
+    fields:
+      - *route_number
+      - {name: device_id, label: Device ID, start: 12, end: 25, type: A, required: true, charset: AN, page: 55,
+         note: "Typed A, but the guide's own example device ID is 12345678901234 (p.6)."}
+      - {name: wand_program, label: Wand Program, start: 26, end: 29, type: A, required: true, values: [SR00, HEX, METR, MTR2, UNIV, SENS, VERS], page: 103,
+         note: "Typed A, but the guide's own value list includes SR00 and MTR2."}
+      - {name: reserved_1, label: Reserved, start: 30, end: 34, type: A, reserved: true}
+      - {name: reserved_2, label: Reserved, start: 35, end: 35, type: A, reserved: true}
+      - {name: node_number, label: Node Number, start: 36, end: 37, type: N, page: 68}
+      - {name: no_tamper_check, label: No Tamper Check Indicator, start: 38, end: 38, type: AN, values: [Y, N, ""], page: 68}
+      - {name: pad, label: Pad, start: 39, end: 126, type: A, pad: true}
+
+  - ids: [RFF]
+    name: Off-site (Radio) Read
+    page: 24
+    fields:
+      - *route_number
+      - {name: rf_ert_id, label: RF ERT ID, start: 12, end: 21, type: AN, required: true, page: 78}
+      - {name: reserved_1, label: Reserved, start: 22, end: 25, type: AN, reserved: true}
+      - {name: reserved_2, label: Reserved, start: 26, end: 29, type: AN, reserved: true}
+      - {name: reserved_3, label: Reserved, start: 30, end: 36, type: N, reserved: true}
+      - {name: geographic_area, label: Geographic Area, start: 37, end: 38, type: N, page: 58}
+      - {name: rf_frequency, label: RF Frequency, start: 39, end: 50, type: N, charset: frequency, check: rf_frequency, page: 78,
+         note: "The guide shows a decimal point (000952.00625, p.78), but FCS accepts digits only (user decision). Blank when Geographic Area is used (p.24)."}
+      - {name: rf_tone, label: RF Tone, start: 51, end: 54, type: N, required: true,
+         values: ["0000", "0004", "0006", "0007", "0008", "0009", "0010", "0011", "0012", "0013", "0014"], page: 78,
+         note: "Tone codes 04, 06-14 (p.78-79); 0000 is the default when not used (p.24)."}
+      - {name: reserved_4, label: Reserved, start: 55, end: 62, type: AN, reserved: true}
+      - {name: tamper, label: Tamper, start: 63, end: 66, type: N, required: true, range: [0, 1023], page: 83}
+      - {name: concentrator_ert, label: Concentrator ERT Indicator, start: 67, end: 67, type: A, required: true, values: [Y, N], page: 53}
+      - {name: fifty_ess_flag, label: 50ESS Flag, start: 68, end: 68, type: AN, values: ["0", "1", "2", ""], page: 49}
+      - {name: protocol_433, label: 433 Protocol, start: 69, end: 69, type: A, values: [R, P, I, ""], page: 49}
+      - {name: iwn_encoder, label: IWN Encoder, start: 70, end: 70, type: A, values: [A, B, C, D, ""], page: 60}
+      - {name: pad, label: Pad, start: 71, end: 126, type: AN, pad: true}

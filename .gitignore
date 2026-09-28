@@ -1,0 +1,13 @@
+# Real customer sample files - never commit (contain PII)
+samples/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Never commit real host files or generated reports
+*.dat
+*.pdf
+.DS_Store

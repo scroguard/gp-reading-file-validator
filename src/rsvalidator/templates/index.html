@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card upload">
+  <h1>Validate a host file</h1>
+  <p class="muted">Upload a file to check it against its published interface guide. Every problem is reported with its line
+    and byte positions, grouped by account.</p>
+  {% if error %}<p class="alert">{{ error }}</p>{% endif %}
+  <form method="post" action="{{ url_for('validate_upload') }}" enctype="multipart/form-data" id="upload-form">
+    <label class="field">
+      <span>File format</span>
+      <select name="format">
+        {% for key, name in formats.items() %}<option value="{{ key }}">{{ name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label class="drop" id="drop">
+      <input type="file" name="file" id="file" required>
+      <span id="drop-text"><strong>Choose a file</strong> or drag it here (up to {{ max_mb }} MB)</span>
+    </label>
+    <button type="submit" class="btn primary" id="submit">Validate</button>
+  </form>
+  <p class="fineprint">Files are checked in memory and are not saved. The report is kept for a short time so it can be
+    downloaded as a PDF, then discarded.</p>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+  const input = document.getElementById('file');
+  const drop = document.getElementById('drop');
+  const text = document.getElementById('drop-text');
+  input.addEventListener('change', () => {
+    if (input.files.length) text.textContent = input.files[0].name;
+  });
+  ['dragenter', 'dragover'].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(e => drop.addEventListener(e, () => drop.classList.remove('over')));
+  drop.addEventListener('drop', ev => {
+    ev.preventDefault();
+    input.files = ev.dataTransfer.files;
+    input.dispatchEvent(new Event('change'));
+  });
+  document.getElementById('upload-form').addEventListener('submit', () => {
+    const b = document.getElementById('submit');
+    b.disabled = true; b.textContent = 'Validating…';
+  });
+</script>
+{% endblock %}

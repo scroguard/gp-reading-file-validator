@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}{{ report.filename }} · Validation report{% endblock %}
+{% block content %}
+{% set cats = report.summary | map(attribute='category') | list %}
+{% set shown = report.sections | selectattr('issues') | list %}
+{% set clean_accounts = report.sections | selectattr('kind', 'equalto', 'account') | rejectattr('issues') | list | length %}
+
+<section class="card head">
+  <div class="head-row">
+    <div>
+      <p class="eyebrow">{{ report.format_name }}</p>
+      <h1 class="filename">{{ report.filename }}</h1>
+      <p class="muted">Checked {{ report.created.strftime('%B %-d, %Y at %-I:%M %p') }} against {{ report.guide }}</p>
+    </div>
+    <div class="actions">
+      <a class="btn primary" href="{{ url_for('report_pdf', token=token) }}">Download PDF</a>
+      <a class="btn" href="{{ url_for('index') }}">Validate another file</a>
+    </div>
+  </div>
+  <div class="verdict {{ 'pass' if report.valid else 'fail' }}">
+    {% if report.valid %}
+      No errors found. This file follows the {{ report.format_name }} layout{% if report.warnings %} ({{ report.warnings }} warning{{ 's' if report.warnings != 1 }} below){% endif %}.
+    {% else %}
+      {{ '{:,}'.format(report.errors) }} error{{ 's' if report.errors != 1 }} found{% if report.warnings %}, plus {{ report.warnings }} warning{{ 's' if report.warnings != 1 }}{% endif %}.
+    {% endif %}
+  </div>
+  <dl class="stats">
+    <div><dt>Lines</dt><dd>{{ '{:,}'.format(report.line_count) }}</dd></div>
+    <div><dt>Routes</dt><dd>{{ report.route_count }}</dd></div>
+    <div><dt>Accounts</dt><dd>{{ '{:,}'.format(report.account_count) }}</dd></div>
+    <div><dt>Accounts with errors</dt><dd>{{ '{:,}'.format(report.accounts_with_errors) }}</dd></div>
+    <div><dt>Errors</dt><dd class="{{ 'bad' if report.errors }}">{{ '{:,}'.format(report.errors) }}</dd></div>
+    <div><dt>Warnings</dt><dd class="{{ 'warn' if report.warnings }}">{{ '{:,}'.format(report.warnings) }}</dd></div>
+  </dl>
+</section>
+
+{% if report.summary %}
+<section class="card">
+  <h2>Summary</h2>
+  <p class="muted">Each kind of problem, how often it occurs, and how many accounts it affects. Select a row to show only
+    the sections with that problem.</p>
+  <div class="table-scroll">
+    <table class="summary" id="summary">
+      <thead><tr><th>Problem</th><th>Type</th><th class="num">Occurrences</th><th class="num">Accounts</th><th class="num">First line</th></tr></thead>
+      <tbody>
+      {% for row in report.summary %}
+        <tr data-cat="{{ loop.index0 }}" tabindex="0">
+          <td>{{ row.category }}</td>
+          <td><span class="tag {{ row.severity.value }}">{{ row.severity.value }}</span></td>
+          <td class="num">{{ '{:,}'.format(row.count) }}</td>
+          <td class="num">{{ '{:,}'.format(row.accounts) if row.accounts else '—' }}</td>
+          <td class="num">{{ row.first_line or '—' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if shown %}
+<section class="details">
+  <div class="toolbar">
+    <input type="search" id="search" placeholder="Search names, account numbers or line numbers…" aria-label="Search">
+    <label class="check"><input type="checkbox" id="errors-only"> Errors only</label>
+    <button class="btn small" id="expand">Expand all</button>
+    <button class="btn small" id="collapse">Collapse all</button>
+    <span class="muted" id="filter-note" hidden></span>
+  </div>
+
+  {% for s in shown %}
+  <details class="section {{ s.kind }}" {% if s.kind != 'account' or shown|length <= 25 %}open{% endif %}
+           data-cats="{% for c in s.issues | map(attribute='category') | unique %}{{ cats.index(c) }} {% endfor %}"
+           data-errors="{{ s.errors }}">
+    <summary>
+      <span class="stitle">{{ s.title }}</span>
+      <span class="counts">
+        {% if s.errors %}<span class="tag error">{{ s.errors }} error{{ 's' if s.errors != 1 }}</span>{% endif %}
+        {% if s.warnings %}<span class="tag warning">{{ s.warnings }} warning{{ 's' if s.warnings != 1 }}</span>{% endif %}
+      </span>
+    </summary>
+    <ol class="issues">
+      {% for i in s.issues %}
+      <li class="{{ i.severity.value }}" data-cat="{{ cats.index(i.category) }}">
+        <div class="where">
+          {% if i.line %}<span class="chip">Line {{ i.line }}</span>{% endif %}
+          {% if i.bytes_label %}<span class="chip">{{ i.bytes_label }}</span>{% endif %}
+          {% if i.record %}<span class="chip rec">{{ i.record }}</span>{% endif %}
+          <span class="tag {{ i.severity.value }}">{{ i.severity.value }}</span>
+        </div>
+        <p>{{ i.message }}{% if i.page %} <span class="page">Guide p.{{ i.page }}</span>{% endif %}</p>
+      </li>
+      {% endfor %}
+    </ol>
+  </details>
+  {% endfor %}
+  {% if clean_accounts %}
+  <p class="muted clean">{{ '{:,}'.format(clean_accounts) }} account{{ 's' if clean_accounts != 1 }} had no problems and {{ 'are' if clean_accounts != 1 else 'is' }} not listed.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const sections = [...document.querySelectorAll('details.section')];
+  const search = document.getElementById('search');
+  const errorsOnly = document.getElementById('errors-only');
+  const note = document.getElementById('filter-note');
+  let cat = null;
+
+  function apply() {
+    const q = (search?.value || '').trim().toLowerCase();
+    let visible = 0;
+    for (const s of sections) {
+      const text = s.querySelector('.stitle').textContent.toLowerCase();
+      const lines = [...s.querySelectorAll('.chip')].map(c => c.textContent.toLowerCase());
+      let show = !q || text.includes(q) || lines.some(l => l === 'line ' + q);
+      if (cat !== null && !s.dataset.cats.split(' ').includes(cat)) show = false;
+      if (errorsOnly?.checked && s.dataset.errors === '0') show = false;
+      s.hidden = !show;
+      for (const li of s.querySelectorAll('li')) {
+        li.hidden = (cat !== null && li.dataset.cat !== cat) || (errorsOnly?.checked && li.classList.contains('warning'));
+      }
+      if (show) visible++;
+    }
+    if (note) {
+      note.hidden = !(q || cat !== null || errorsOnly?.checked);
+      note.textContent = `${visible} of ${sections.length} sections shown`;
+    }
+  }
+
+  document.querySelectorAll('#summary tbody tr').forEach(tr => {
+    const pick = () => {
+      const same = cat === tr.dataset.cat;
+      document.querySelectorAll('#summary tr.active').forEach(r => r.classList.remove('active'));
+      cat = same ? null : tr.dataset.cat;
+      if (!same) {
+        tr.classList.add('active');
+        sections.forEach(s => { if (s.dataset.cats.split(' ').includes(cat)) s.open = true; });
+        document.querySelector('.details')?.scrollIntoView({behavior: 'smooth'});
+      }
+      apply();
+    };
+    tr.addEventListener('click', pick);
+    tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+  });
+  search?.addEventListener('input', apply);
+  errorsOnly?.addEventListener('change', apply);
+  document.getElementById('expand')?.addEventListener('click', () => sections.forEach(s => { if (!s.hidden) s.open = true; }));
+  document.getElementById('collapse')?.addEventListener('click', () => sections.forEach(s => s.open = false));
+})();
+</script>
+{% endblock %}

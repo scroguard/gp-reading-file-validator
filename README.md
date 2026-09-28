@@ -1,0 +1,59 @@
+# Reading System File Validator
+
+A small web app that checks meter-reading host files against their published interface guides. Upload a file and the
+app reports every problem it finds: the line, the byte positions, what those bytes are for, and what is wrong. Results
+are grouped by account, shown on screen, and can be downloaded as a PDF.
+
+Supported in v1.0:
+
+| Application | Format | Status |
+|---|---|---|
+| MV-RS | Host Download (fixed-width, 128-byte records) | Available |
+| FCS | CSV, XML | Planned |
+| Temetra | CSV, XML | Planned |
+
+Validation is strict. A file that passes follows the guide exactly, so it will import into MV-RS, FCS and Temetra.
+
+## Running with Docker
+
+```sh
+docker compose up -d --build
+```
+
+The app is then available at <http://127.0.0.1:8080>.
+
+**Access is limited to this machine by default.** Uploaded files contain customer names and addresses, and the app has
+no login of its own. The recommended setup is:
+
+1. Keep the default port mapping (`127.0.0.1:8080:8000` in `docker-compose.yml`).
+2. Run a reverse proxy on the same host (nginx, Caddy, Traefik and so on) that handles authentication and TLS.
+3. Reach the proxy over your VPN.
+
+If you only use the app on a local network you trust, you can publish the port on all interfaces instead. See the
+comments in `docker-compose.yml`. That choice is yours.
+
+Settings (environment variables):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `RSV_MAX_UPLOAD_MB` | 50 | Largest file accepted |
+| `RSV_REPORT_TTL_MINUTES` | 30 | How long a finished report stays available for PDF download |
+| `RSV_MAX_CACHED_REPORTS` | 20 | How many reports are kept in memory at once |
+
+Uploaded files are processed in memory and never written to disk. Reports are held in memory only until they expire,
+and a container restart clears them.
+
+## Development
+
+Requires Python 3.12+.
+
+```sh
+uv venv && uv pip install -e '.[dev]'
+.venv/bin/uvicorn rsvalidator.web:app --reload        # http://127.0.0.1:8000
+.venv/bin/python -m pytest                            # all tests
+.venv/bin/python -m pytest tests/test_mvrs.py -k rff  # a subset
+```
+
+Put real sample files in `samples/`. That directory is git-ignored, and `tests/test_samples.py` runs a smoke test
+against any `.dat` files in it. Never commit real files. All committed test fixtures are synthetic
+(`tests/mvrs_builder.py`).
