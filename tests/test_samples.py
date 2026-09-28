@@ -44,3 +44,13 @@ def test_file_accepted_by_fcs_has_no_errors():
 def test_fcs_csv_sample_validates(path):
     report = validate(path.read_bytes(), path.name, "fcs-csv")
     assert report.line_count > 0 and report.account_count > 0
+
+
+FCS_CSV_ACCEPTED = Path(__file__).parent.parent / "samples" / "sitka-fcs.csv"
+
+
+@pytest.mark.skipif(not FCS_CSV_ACCEPTED.exists(), reason="sample not present")
+def test_fcs_csv_accepted_by_fcs_has_no_errors():
+    # FCS imported this file; it must stay error-free (its two warnings are expected).
+    report = validate(FCS_CSV_ACCEPTED.read_bytes(), FCS_CSV_ACCEPTED.name, "fcs-csv")
+    assert report.errors == 0

@@ -18,7 +18,7 @@ docker compose up -d --build                           # container, http://127.0
 
 A Dockerized web app that validates meter-reading-system flat files against the vendors' published interface guides. Users upload a file through a web UI; the app reports every formatting error on screen, with a downloadable PDF. Distributed via git.
 
-v1.0 scope — 5 formats across 3 applications. MV-RS, FCS CSV and FCS XML are implemented; Temetra is next.
+v1.0 scope — 5 formats across 3 applications. All five (MV-RS, FCS CSV/XML, Temetra CSV/XML) are implemented.
 
 | Application | Formats | Notes |
 |---|---|---|
@@ -140,7 +140,27 @@ Decisions and caveats:
 - CSV route IDs shorter than 8 characters are accepted, because FCS pads them (p.2).
 - Export-only elements or columns (e.g. `MeterSessionInput.ChangeIndicator`) are **warnings**: FCS sets them itself. `samples/sitka-fcs.csv` contains one.
 - XML element order follows the guide's table order and is reported as an error ("sequence is critical", p.10). The guide does not name the root element and doesn't include the SDK XSDs. **XML validation has only been tested against synthetic files.**
-- `samples/sitka-fcs.csv` validates with 0 errors. Whether FCS actually accepted it is unconfirmed.
+- `samples/sitka-fcs.csv` was imported by FCS without issues. It must produce **zero errors**; `tests/test_samples.py` enforces this. Its two warnings are expected: trailing spaces in one customer name, and the export-only `ChangeIndicator` column.
+
+## Temetra import formats (CSV and XML)
+
+Sources in `samples/` (page numbers are each guide's own "Page N", which equals the PDF page):
+- **CSV:** `Temetra_NAM_CSV_File_Format_Guide.pdf` (LDI-0665 REV 002, December 2024) is the authority. It supersedes `Temetra_CSVFileFormat_Ref_LDI-0351.pdf` (REV 003, September 2023) for North America.
+- **XML:** `Temetra XML File Format Reference Guide LDI-0587.pdf` (REV 002, May 2025).
+- `temetra-sample-csv-with-notes.csv` is Itron's annotated example with made-up data. Its note rows (line 35 on) are not part of real files.
+
+**XML:** the same format family as FCS: same namespace, sections and entity names, with Temetra supporting a subset. It reuses `fcs_xml.py`:
+- `formats/temetra_elements.yaml` is generated with `tools/extract_fcs_guide.py <text> <out> --profile temetra`.
+- `formats/temetra.yaml` holds the hand-written rules: three code types, a required `Ownership` attribute on sections, unique WorkSetIDs, and overrides.
+- Values differ from FCS (e.g. NumberDials 4–10), so never share the FCS dictionary.
+
+**CSV:** a completely different layout from FCS CSV. `temetra_csv.py` works like this:
+- Columns are matched by heading name. Headings must be uppercase and unique.
+- The file type is detected from the file name prefix and the headings: New Asset (IGNORE, CANCREATE first), Meters and Customers Data Update, Meter Replacement (`meterreplacement*`), Schedule (`new-schedules-from-existing-meters-*`), De-schedule (`deschedule-existing-*`), Historical Reads.
+- Rows with IGNORE=yes are skipped.
+- Field rules are hand-written in `temetra.yaml` under `csv:`. `formats/temetra_csv_fields.yaml` is the generated reference extraction (`tools/extract_temetra_csv_guide.py`) they were written from.
+- `values_warn` lists (units, sizes, pipe types) only produce warnings, because the guide says Temetra's lists depend on the network.
+- Tags in ADDTAG, ADDACCOUNTTAG and METERTAGS are checked against the guide's tag tables. Tags not in those tables are warnings, because utilities can define their own.
 
 ## Validation policy decisions (from the user)
 

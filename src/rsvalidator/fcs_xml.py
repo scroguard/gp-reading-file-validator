@@ -1,4 +1,4 @@
-"""FCS XML import file validation (guide chapters 2-3, printed pages 9-108).
+"""FCS and Temetra XML import file validation (the two products share one XML format).
 
 Checks well-formedness, namespace, section and code-collection order, each
 entity's elements (known, in the documented order, required ones present,
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from lxml import etree
 
-from .fcs_spec import Entity, FcsSpec, check_value, load_fcs
+from .fcs_spec import Entity, FcsSpec, check_value, load_xml_spec
 from .grouping import Grouping
 from .issues import Issue, Severity
 
@@ -32,7 +32,11 @@ class XmlChecker:
         self.issues: list[Issue] = []
         self.grouping = Grouping()
         self.route_index = -1
-        self.bad_namespace_reported = False
+        self.product = spec.rules.get("product", "FCS")
+        self.seen_routes: dict[str, int] = {}
+
+    def pg(self, key: str) -> int | None:
+        return self.rules.get("pages", {}).get(key)
 
     def issue(self, el, code, summary, message, severity=Severity.ERROR, page=None, path=None, field=None):
         line = el.sourceline if el is not None else None
@@ -66,15 +70,20 @@ class XmlChecker:
             if name not in order:
                 self.issue(child, "unknown-element", "Unknown element",
                            f"<{name}> is not allowed here. The import file contains only <Codes>, <Messages> and "
-                           f"<WorkSets> sections (p.15).", path=self.path_of(child), page=15)
+                           f"<WorkSets> sections (p.{self.pg('sections')}).", path=self.path_of(child), page=self.pg("sections"))
                 continue
             pos = order.index(name)
             if pos <= last:
                 self.issue(child, "element-order", "Element out of order",
                            f"<{name}> is out of order or repeated. The sections must appear in the order "
-                           f"{', '.join(order)} (p.15).", path=self.path_of(child), page=15)
+                           f"{', '.join(order)} (p.{self.pg('sections')}).", path=self.path_of(child), page=self.pg("sections"))
             last = max(last, pos)
             self.check_attributes(child)
+            for attr in self.rules.get("required_attributes", {}).get(name, []):
+                if attr not in child.attrib:
+                    self.issue(child, "required-attribute", f"{attr} attribute missing",
+                               f"<{name}> needs an {attr} attribute. It is not currently used but is still required "
+                               f"(p.{self.pg('sections')}).", path=self.path_of(child), page=self.pg("sections"))
             if name == "Codes":
                 self.codes(child)
             elif name == "Messages":
@@ -84,7 +93,7 @@ class XmlChecker:
         if not any(_local(c.tag) in order for c in self.children(root)):
             self.issue(root, "no-sections", "No import sections",
                        f"The root element <{_local(root.tag)}> contains none of <Codes>, <Messages> or <WorkSets>, "
-                       f"so there is nothing to import (p.15).", page=15)
+                       f"so there is nothing to import (p.{self.pg('sections')}).", page=self.pg("sections"))
 
     def check_namespaces(self, root):
         expected = self.rules["namespace"]
@@ -92,9 +101,9 @@ class XmlChecker:
             if isinstance(el.tag, str) and _ns(el.tag) != expected:
                 found = _ns(el.tag) or "no namespace"
                 self.issue(el, "namespace", "Wrong XML namespace",
-                           f"<{_local(el.tag)}> is in {found}, but every element of an FCS XML file must be in the "
-                           f"namespace {expected} (p.10). Add xmlns=\"{expected}\" to the root element.",
-                           path=self.path_of(el), page=10)
+                           f"<{_local(el.tag)}> is in {found}, but every element of an {self.product} XML file must be in the "
+                           f"namespace {expected} (p.{self.pg('xml_rules')}). Add xmlns=\"{expected}\" to the root element.",
+                           path=self.path_of(el), page=self.pg("xml_rules"))
                 return
 
     def check_attributes(self, el):
@@ -107,7 +116,7 @@ class XmlChecker:
             if vals and value not in vals:
                 self.issue(el, "invalid-value", f"{local} attribute: invalid value",
                            f"The {local} attribute on <{_local(el.tag)}> must be true or false, but it is \"{value}\".",
-                           path=self.path_of(el), page=20)
+                           path=self.path_of(el), page=self.pg("codes"))
 
     def codes(self, codes_el):
         order = [c["collection"] for c in self.rules["codes"]]
@@ -117,14 +126,14 @@ class XmlChecker:
             name = _local(child.tag)
             if name not in entity_of:
                 self.issue(child, "unknown-element", "Unknown element",
-                           f"<{name}> is not a code collection. <Codes> may contain {', '.join(order)} (p.19).",
-                           path=self.path_of(child), page=19)
+                           f"<{name}> is not a code collection. <Codes> may contain {', '.join(order)} (p.{self.pg('codes')}).",
+                           path=self.path_of(child), page=self.pg("codes"))
                 continue
             pos = order.index(name)
             if pos <= last:
                 self.issue(child, "element-order", "Element out of order",
                            f"<{name}> is out of order or repeated. Code collections must appear in this order: "
-                           f"{', '.join(order)} (p.19).", path=self.path_of(child), page=19)
+                           f"{', '.join(order)} (p.{self.pg('codes')}).", path=self.path_of(child), page=self.pg("codes"))
             last = max(last, pos)
             self.check_attributes(child)
             self.collection(child, entity_of[name])
@@ -144,9 +153,16 @@ class XmlChecker:
             if _local(child.tag) != entity:
                 self.issue(child, "unknown-element", "Unknown element",
                            f"<{_local(child.tag)}> is not allowed in <WorkSets>, which may only contain <WorkSet> "
-                           f"entries (p.50).", path=self.path_of(child), page=50)
+                           f"entries (p.{self.pg('worksets')}).", path=self.path_of(child), page=self.pg("worksets"))
                 continue
             route = (child.findtext(f"{{{self.rules['namespace']}}}WorkSetID") or child.findtext("WorkSetID") or "").strip()
+            if self.rules.get("unique_workset_ids") and route:
+                if route in self.seen_routes:
+                    self.issue(child, "duplicate-route", "WorkSetID not unique",
+                               f"WorkSetID {route} is also used by the <WorkSet> on line {self.seen_routes[route]}. "
+                               f"{self.product} requires WorkSetID values to be unique (p.{self.pg('workset_id')}).",
+                               path=self.path_of(child), page=self.pg("workset_id"))
+                self.seen_routes.setdefault(route, child.sourceline)
             self.route_index = len(self.grouping.routes)
             self.grouping.routes.append((f"Route {route or '(unknown)'}, starting on line {child.sourceline}",
                                          child.sourceline))
@@ -168,13 +184,13 @@ class XmlChecker:
             element = None if is_child_entity else ent.element(name)
             if element is None and not is_child_entity and name in ent.export_only:
                 self.issue(child, "export-only", "Export-only element",
-                           f"<{name}> is an export element of <{ent.name}>: FCS sets it itself, so it is ignored on "
+                           f"<{name}> is an export element of <{ent.name}>: {self.product} sets it itself, so it is ignored on "
                            f"import and can be removed.", Severity.WARNING, path=path)
                 continue
             if element is None and not is_child_entity:
                 self.issue(child, "unknown-element", "Unknown element",
                            f"<{name}> is not an element of <{ent.name}> in the guide (p.{ent.page}). Check the "
-                           f"spelling and capitalization; XML tags are case-sensitive (p.10).",
+                           f"spelling and capitalization; XML tags are case-sensitive (p.{self.pg('xml_rules')}).",
                            path=path, page=ent.page)
                 continue
             if name not in extra:
@@ -182,7 +198,7 @@ class XmlChecker:
                 if pos is not None and pos < last_pos:
                     self.issue(child, "element-order", "Element out of order",
                                f"<{name}> must come before <{last_name}> inside <{ent.name}>. The order of elements "
-                               f"is required for validation (p.10).", path=path, page=10)
+                               f"is required for validation (p.{self.pg('xml_rules')}).", path=path, page=self.pg("xml_rules"))
                 elif pos is not None:
                     last_pos, last_name = pos, name
             if is_child_entity:
@@ -221,8 +237,8 @@ class XmlChecker:
         forbidden = [c for c in self.rules["forbidden_characters"] if c in text]
         if forbidden:
             self.issue(child, "forbidden-character", "Character & not allowed",
-                       f"{label} contains \"&\", which is not allowed anywhere in the FCS XML import file (p.16).",
-                       page=16, path=path, field=label)
+                       f"{label} contains \"&\", which is not allowed anywhere in the {self.product} XML import file (p.{self.pg('ampersand')}).",
+                       page=self.pg("ampersand"), path=path, field=label)
         if not text.strip():
             if element.required:
                 self.issue(child, "required-blank", f"Required {label} is blank",
@@ -240,8 +256,8 @@ class XmlChecker:
             if bad:
                 shown = ", ".join("space" if c == " " else f"'{c}'" for c in bad)
                 self.issue(child, "route-id-characters", "WorkSet.WorkSetID: characters not allowed",
-                           f"A route ID cannot contain a space or any of \\ / : * ? \" < > | & ' [ = (p.54), but it "
-                           f"contains {shown}.", page=54, path=path, field=label)
+                           f"A route ID cannot contain a space or any of \\ / : * ? \" < > | & ' [ = (p.{self.pg('workset_id')}), but it "
+                           f"contains {shown}.", page=self.pg("workset_id"), path=path, field=label)
 
     def session_input(self, el):
         """One input type per meter (p.51); ReadMethod must match it (p.3, p.51)."""
@@ -254,27 +270,28 @@ class XmlChecker:
         if len(kinds) > 1:
             self.issue(el, "multiple-inputs", "More than one input type",
                        f"<MeterSessionInput> contains {', '.join(kinds)}. A meter can have only one type of input; "
-                       f"with more than one, the meter information does not load to the handheld (p.51).",
-                       path=self.path_of(el), page=51)
+                       f"with more than one, the meter information does not load to the handheld (p.{self.pg('single_input')}).",
+                       path=self.path_of(el), page=self.pg("single_input"))
         method = (el.findtext(f"{{{ns}}}ReadMethod") or "0").strip()
         prompt = (el.findtext(f"{{{ns}}}PromptCode") or "").strip()
         if method == "5" and prompt != "1":
             self.issue(el, "read-method-5-prompt", "ReadMethod 5 without PromptCode 1",
                        f"ReadMethod 5 (No Read) is only valid with PromptCode 1, but the PromptCode is "
-                       f"\"{prompt or 'blank'}\" (p.78).", path=self.path_of(el), page=78)
+                       f"\"{prompt or 'blank'}\" (p.{self.pg('read_method_5')}).", path=self.path_of(el), page=self.pg("read_method_5"))
         wanted = self.spec.rules["read_method_children"].get(method)
         has = set(present) | ({"MeterSessionInputOptical"} if "MeterSessionInputOpRd" in present else set())
         if wanted and wanted not in has:
             self.issue(el, "read-method-missing-data", f"ReadMethod {method} without {wanted}",
-                       f"ReadMethod is {method}, which needs a <{wanted}> entity, but there is none. FCS changes the "
-                       f"ReadMethod to 0 (manual) on import (p.3).", path=self.path_of(el), page=3)
+                       f"ReadMethod is {method}, which needs a <{wanted}> entity, but there is none. "
+                       + self.rules.get("read_method_missing_note", f"{self.product} changes the ReadMethod to 0 (manual) on import")
+                       + f" (p.{self.pg('read_method')}).", path=self.path_of(el), page=self.pg("read_method"))
         for other in sorted(has - {wanted}):
             if other == "MeterSessionInputOpRd":
                 continue
             codes = "/".join(k for k, v in self.spec.rules["read_method_children"].items() if v == other)
             self.issue(el, "read-method-unexpected-data", f"{other} but ReadMethod is not {codes}",
                        f"<{other}> is included, but ReadMethod is {method}. Its data is only used when the ReadMethod "
-                       f"is {codes} (p.3).", path=self.path_of(el), page=3)
+                       f"is {codes} (p.{self.pg('read_method')}).", path=self.path_of(el), page=self.pg("read_method"))
 
     def start_account(self, cust):
         ns = self.rules["namespace"]
@@ -292,8 +309,8 @@ class XmlChecker:
         self.own(cust, ("account", idx))
 
 
-def validate_xml(content: bytes) -> tuple[list[Issue], Grouping]:
-    spec = load_fcs()
+def validate_xml(content: bytes, product: str = "fcs") -> tuple[list[Issue], Grouping]:
+    spec = load_xml_spec(product)
     checker = XmlChecker(spec)
     checker.grouping.line_count = content.count(b"\n") + (0 if content.endswith(b"\n") else 1) if content else 0
     parser = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False, huge_tree=False,
@@ -303,12 +320,12 @@ def validate_xml(content: bytes) -> tuple[list[Issue], Grouping]:
     except etree.XMLSyntaxError as e:
         line = e.position[0] if e.position else None
         if content.lstrip()[:1] not in (b"<", b"\xef", b"\xff", b"\xfe"):
-            msg = "This file does not look like XML. Choose the FCS CSV Import format for CSV files."
+            msg = f"This file does not look like XML. Choose the {checker.product} CSV Import format for CSV files."
         else:
             msg = (f"The file is not well-formed XML: {e.msg}. Every element needs a matching end tag, tags are "
-                   f"case-sensitive, and & must not appear in the file (p.10, p.16). Nothing after this point was checked.")
+                   f"case-sensitive, and & must not appear in the file. Nothing after this point was checked.")
         checker.issues.append(Issue(severity=Severity.ERROR, code="xml-syntax", summary="XML is not well-formed",
-                                    line=line, message=msg, page=10))
+                                    line=line, message=msg, page=checker.pg("xml_rules")))
         return checker.issues, checker.grouping
     checker.run(root)
     return checker.issues, checker.grouping

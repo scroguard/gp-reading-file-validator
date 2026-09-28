@@ -11,7 +11,8 @@ Supported in v1.0:
 | MV-RS | Host Download (fixed-width, 128-byte records) | Available |
 | FCS | CSV import | Available |
 | FCS | XML import | Available (not yet tested against a real customer file) |
-| Temetra | CSV, XML | Planned |
+| Temetra | CSV import (New Asset, Data Update, Meter Replacement, Schedule, De-schedule, Historical Reads) | Available |
+| Temetra | XML import | Available (not yet tested against a real customer file) |
 
 Validation is strict. A file that passes follows the guide exactly, so it will import into MV-RS, FCS and Temetra.
 

@@ -18,6 +18,8 @@ FORMATS = {
     "mvrs": "MV-RS Host Download",
     "fcs-csv": "FCS CSV Import",
     "fcs-xml": "FCS XML Import",
+    "temetra-csv": "Temetra CSV Import",
+    "temetra-xml": "Temetra XML Import",
 }
 
 
@@ -79,13 +81,19 @@ def validate(content: bytes, filename: str, format_key: str = "mvrs") -> Report:
     fmt = FORMATS[format_key]
     if format_key == "mvrs":
         issues, grouping, guide = _validate_mvrs(content)
+    elif format_key == "temetra-csv":
+        from .temetra_csv import GUIDE, validate_temetra_csv
+
+        issues, grouping = validate_temetra_csv(content, filename)
+        guide = GUIDE
     else:
         from .fcs_csv import validate_csv
-        from .fcs_spec import load_fcs
+        from .fcs_spec import load_xml_spec
         from .fcs_xml import validate_xml
 
-        issues, grouping = (validate_csv if format_key == "fcs-csv" else validate_xml)(content)
-        guide = load_fcs().guide
+        product = format_key.split("-")[0]
+        issues, grouping = validate_csv(content) if format_key == "fcs-csv" else validate_xml(content, product)
+        guide = load_xml_spec(product).guide
     if not content:
         issues = [Issue(severity=Severity.ERROR, code="empty-file", summary="Empty file",
                         message="The uploaded file is empty.")]

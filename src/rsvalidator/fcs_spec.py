@@ -119,10 +119,15 @@ def _derive(el: Element):
         el.fmt = "datetime"
 
 
-@cache
 def load_fcs() -> FcsSpec:
-    gen = yaml.safe_load((FORMATS_DIR / "fcs_elements.yaml").read_text())["entities"]
-    rules = yaml.safe_load((FORMATS_DIR / "fcs.yaml").read_text())
+    return load_xml_spec("fcs")
+
+
+@cache
+def load_xml_spec(product: str) -> FcsSpec:
+    """Element dictionary + rules for an XML-family product: "fcs" or "temetra"."""
+    gen = yaml.safe_load((FORMATS_DIR / f"{product}_elements.yaml").read_text())["entities"]
+    rules = yaml.safe_load((FORMATS_DIR / f"{product}.yaml").read_text())
     entities: dict[str, Entity] = {}
     for name, raw in gen.items():
         elements = []

@@ -1,8 +1,12 @@
-"""Generate formats/fcs_elements.yaml from the FCS CSV and XML File Format Reference Guide.
+"""Generate an XML element dictionary from an Itron FCS or Temetra XML reference guide.
 
 Usage:
     pdftotext -layout FCS_..._Reference_Guide.pdf guide.txt
     python tools/extract_fcs_guide.py guide.txt src/rsvalidator/formats/fcs_elements.yaml
+    python tools/extract_fcs_guide.py temetra.txt src/rsvalidator/formats/temetra_elements.yaml --profile temetra
+
+Both guides document the same XML import format (WorkSets, Codes, Messages)
+with per-product differences, in the same table style.
 
 Reads the "XML Import File" chapter (printed pages 15-108; printed page = PDF
 page - 10) and writes every entity table: element name, type, length, valid
@@ -18,15 +22,29 @@ import sys
 
 import yaml
 
-FIRST_PAGE, LAST_PAGE, PAGE_OFFSET = 15, 108, 9  # printed pages; index = printed + offset
-EXPORT_FIRST, EXPORT_LAST = 109, 244  # "XML Export File" chapter, for export-only element names
+PROFILES = {
+    # FCS TDC-1664-002: printed page = PDF page - 10.
+    "fcs": dict(pages=(15, 108), export=(109, 244), offset=9, source="the FCS CSV and XML File Format\n"
+                "# Reference Guide (TDC-1664-002), chapter \"XML Import File\"",
+                noise=("Proprietary and Confidential", "File Format Reference Guide"), header_lines=1),
+    # Temetra LDI-0587 REV 002: page numbers equal PDF pages.
+    "temetra": dict(pages=(9, 51), export=(52, 126), offset=-1, source="the Temetra XML File Format\n"
+                    "# Reference Guide (LDI-0587 REV 002), chapter \"XML Import File\"",
+                    noise=("LDI-0587", "Temetra XML File", "Format Reference"), header_lines=0, loose_values=True),
+}
+FIRST_PAGE, LAST_PAGE, PAGE_OFFSET = 15, 108, 9  # set from the profile in main()
+EXPORT_FIRST, EXPORT_LAST = 109, 244
+NOISE_LINES: tuple[str, ...] = ()
+LOOSE_VALUES = False  # Temetra: value lines lose their indentation, so detect them by their code
+HEADER_LINES = 1
 
 CAPTION = re.compile(r"^\s*([A-Z][A-Za-z0-9]*)\s*$")
 HEADER = re.compile(r"^\s*Element\s{2,}Description\s*$")
 HEADER_VARIANT = re.compile(r"^\s*([A-Z][A-Za-z0-9]*)\s{2,}Description\s*$")  # "<Entity>  Description" / "Element"
+HEADER_INLINE = re.compile(r"^\s*([A-Z][A-Za-z0-9]*) Element\s{2,}Description\s*$")  # "<Entity> Element  Description"
 NAME_ROW = re.compile(r"^(\s*)([A-Za-z][A-Za-z0-9_]*)\s{2,}(\S.*)$")
 ALIAS = re.compile(r"^\s*\(([A-Za-z][A-Za-z0-9_]*)\)")
-NOISE = ("Proprietary and Confidential", "File Format Reference Guide")
+VALUE_CODE = re.compile(r"-?\d+(-\d+)?|true|false|True|False|blank|\*\*|[A-Z0-9][A-Z0-9-]{0,7}")
 TYPES = {
     "string": "String", "integer": "Integer", "long": "Integer", "byte": "Byte", "boolean": "Boolean",
     "date": "Date", "datetime": "DateTime", "double": "Double", "float": "Float",
@@ -34,20 +52,26 @@ TYPES = {
 }
 
 
-def read_tables(pages: list[str], first: int = FIRST_PAGE, last: int = LAST_PAGE) -> list[tuple[str, int, list[dict]]]:
+def read_tables(pages: list[str], first: int | None = None, last: int | None = None) -> list[tuple[str, int, list[dict]]]:
+    first, last = first or FIRST_PAGE, last or LAST_PAGE
     tables: dict[str, tuple[int, list[dict]]] = {}
     last_heading = None
     for printed in range(first, last + 1):
-        lines = [ln for ln in pages[printed + PAGE_OFFSET].splitlines() if not any(n in ln for n in NOISE)]
-        first = next((k for k, ln in enumerate(lines) if ln.strip()), None)
-        lines = lines[first + 1:] if first is not None else []  # drop running page header
+        lines = [ln for ln in pages[printed + PAGE_OFFSET].splitlines() if not any(n in ln for n in NOISE_LINES)]
+        for _ in range(HEADER_LINES):  # drop the running page header
+            first = next((k for k, ln in enumerate(lines) if ln.strip()), None)
+            lines = lines[first + 1:] if first is not None else []
+        lines = [ln for ln in lines if not re.match(r"^Guide\s{2,}", ln)]
         i = 0
         while i < len(lines):
             m = CAPTION.match(lines[i])
             if m:
                 last_heading = m.group(1)
             v = HEADER_VARIANT.match(lines[i])
-            if v and i + 1 < len(lines) and lines[i + 1].strip() == "Element":
+            inline = HEADER_INLINE.match(lines[i])
+            if inline:
+                last_heading, desc_col, i = inline.group(1), lines[i].index("Description"), i + 1
+            elif v and i + 1 < len(lines) and lines[i + 1].strip() == "Element":
                 last_heading, desc_col, i = v.group(1), lines[i].index("Description"), i + 2
             elif HEADER.match(lines[i]) and last_heading:
                 desc_col, i = lines[i].index("Description"), i + 1
@@ -93,6 +117,8 @@ def parse_element(row: dict) -> dict:
             el["length"] = int(m.group(2))
 
     values, valid, in_vv = [], [], False
+    # Temetra marks each value with a bullet; then only bullet lines start a new value.
+    bulleted = any(ln.strip().startswith("■") for ln in raw)
     for line in raw:
         s = line.strip()
         if s.startswith("Valid values:"):
@@ -103,11 +129,20 @@ def parse_element(row: dict) -> dict:
             continue
         if not in_vv:
             continue
-        if re.match(r"(Usage|XML Import|XMl Import|XML Export|Note|Type/length)\b", s):
+        if re.match(r"(Usage|XML Import|XML Export|Note|Type/length)\b", s, re.I):
             in_vv = False
             continue
-        vm = re.match(r"^ {1,4}(\S+)\s+(\S.*)$", line)
-        if vm and not valid and vm.group(1) not in ("-",):
+        has_bullet = s.startswith("■")
+        line = re.sub(r"^(\s*)■ ", r"\1 ", line)
+        s = line.strip()
+        vm = re.match(r"^ {1,4}(\S+)\s+(\S.*)$", line) if has_bullet or not bulleted else None
+        if vm is None and not bulleted and values and LOOSE_VALUES:
+            # Temetra's layout loses bullets and indentation: a value line starts with a code.
+            vm = re.match(r"^\s*(\S+)\s+(\S.*)$", line)
+            if vm and not VALUE_CODE.fullmatch(vm.group(1)):
+                vm = None
+        if vm and not valid and vm.group(1) not in ("-",) and (not values or not LOOSE_VALUES
+                                                               or VALUE_CODE.fullmatch(vm.group(1))):
             values.append([vm.group(1), vm.group(2).strip()])
         elif values:
             values[-1][1] += " " + s
@@ -140,7 +175,12 @@ def parse_element(row: dict) -> dict:
     return el
 
 
-def main(src: str, dest: str):
+def main(src: str, dest: str, profile: str = "fcs"):
+    global FIRST_PAGE, LAST_PAGE, PAGE_OFFSET, EXPORT_FIRST, EXPORT_LAST, NOISE_LINES, HEADER_LINES, LOOSE_VALUES
+    prof = PROFILES[profile]
+    (FIRST_PAGE, LAST_PAGE), (EXPORT_FIRST, EXPORT_LAST) = prof["pages"], prof["export"]
+    PAGE_OFFSET, NOISE_LINES, HEADER_LINES = prof["offset"], prof["noise"], prof["header_lines"]
+    LOOSE_VALUES = prof.get("loose_values", False)
     pages = open(src, encoding="utf-8").read().split("\f")
     out = {"entities": {}}
     for name, page, rows in read_tables(pages):
@@ -155,9 +195,9 @@ def main(src: str, dest: str):
         if extra:
             out["entities"][name]["export_only"] = sorted(set(extra))
     header = (
-        "# GENERATED by tools/extract_fcs_guide.py from the FCS CSV and XML File Format\n"
-        "# Reference Guide (TDC-1664-002), chapter \"XML Import File\". Page numbers are the\n"
-        "# guide's printed pages. Hand corrections belong in formats/fcs.yaml, not here.\n"
+        f"# GENERATED by tools/extract_fcs_guide.py --profile {profile} from {prof['source']}.\n"
+        f"# Page numbers are the guide's printed pages. Hand corrections belong in\n"
+        f"# formats/{profile}.yaml, not here.\n"
     )
     with open(dest, "w") as f:
         f.write(header)
@@ -168,4 +208,10 @@ def main(src: str, dest: str):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    args = sys.argv[1:]
+    prof = "fcs"
+    if "--profile" in args:
+        k = args.index("--profile")
+        prof = args[k + 1]
+        del args[k:k + 2]
+    main(args[0], args[1], prof)

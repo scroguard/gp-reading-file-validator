@@ -7,8 +7,13 @@
 format: FCS Import
 guide: Itron FCS CSV and XML File Format Reference Guide TDC-1664-002 (March 2017)
 
+product: FCS
+
 xml:
   namespace: http://www.itron.com/nVanta          # p.10
+  # Guide pages cited in XML messages.
+  pages: {sections: 15, xml_rules: 10, codes: 19, worksets: 50, ampersand: 16, workset_id: 54,
+          single_input: 51, read_method: 3, read_method_5: 78}
   # Top-level sections under the root element, in order (p.15). The root
   # element's own name is not given in the guide (it is defined in the SDK XSDs).
   sections: [Codes, Messages, WorkSets]
