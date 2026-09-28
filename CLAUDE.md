@@ -9,7 +9,7 @@ uv venv && uv pip install -e '.[dev]'                  # setup (Python 3.12+)
 .venv/bin/python -m pytest                             # all tests
 .venv/bin/python -m pytest tests/test_mvrs.py -k rff   # single test / subset
 .venv/bin/uvicorn rsvalidator.web:app --reload         # dev server, http://127.0.0.1:8000
-docker compose up -d --build                           # container, http://127.0.0.1:8080
+docker compose up -d --build                           # container, http://127.0.0.1:9999
 ```
 
 `tests/test_samples.py` runs against real files in `samples/` when present and is skipped otherwise. Docker is not installed on the dev Mac, so the image build has not been run locally.
@@ -156,5 +156,5 @@ Open questions for the user:
 
 - Authentication is out of scope for the app. It is expected to sit behind a user-configured reverse proxy, typically reached over a VPN, which handles auth.
 - The Docker configuration should **default to binding to `127.0.0.1`** and strongly recommend that setup in its comments and docs. Keep it easy to change for users who host on a trusted LAN instead. That choice belongs to them.
-- Uploaded files contain customer PII. They are never written to disk. Reports, which contain names, live only in memory until their TTL expires.
-- The interface guide PDF is marked proprietary and confidential by Itron. It stays in git-ignored `samples/`. The repo contains field layouts derived from it, so it must stay private.
+- Uploaded files contain customer PII. They are never saved. Uploads over 1 MB are briefly spooled to `/tmp` (python-multipart), which compose mounts as tmpfs, so keep `/tmp` in RAM in any deployment. Reports, which contain names, live only in memory until their TTL expires.
+- The interface guide PDF is marked proprietary and confidential by Itron. It stays in git-ignored `samples/` and is never committed. The repo, which contains field layouts derived from it, was made public on 2026-09-28; the user says they have permission.
