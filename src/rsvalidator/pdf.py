@@ -18,7 +18,10 @@ LINE_RGB = (221, 226, 234)
 
 def _t(text: str) -> str:
     # Core PDF fonts are Latin-1; uploads are decoded as Latin-1 so this is lossless for file data.
-    return text.replace("—", "-").replace("…", "...").encode("latin-1", "replace").decode("latin-1")
+    for fancy, plain in (("\u2014", "-"), ("\u2026", "..."), ("\u2192", "->"), ("\u2019", "'"), ("\u2018", "'"),
+                         ("\u201c", '"'), ("\u201d", '"')):
+        text = text.replace(fancy, plain)
+    return text.encode("latin-1", "replace").decode("latin-1")
 
 
 class _Doc(FPDF):
@@ -102,6 +105,23 @@ def render_pdf(report: Report, customer: str = "") -> bytes:
         pdf.cell(0, 4.6, _t(text), new_x=XPos.LMARGIN, new_y=YPos.NEXT)
     pdf.ln(3)
 
+    if report.corrected:
+        fx = report.corrected
+        pdf.set_font("Helvetica", "B", 12)
+        pdf.cell(0, 7, "Corrections made", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("Helvetica", "", 9)
+        after = (f"The corrected file still has {fx.errors_after} problem(s) that must be corrected by hand."
+                 if fx.errors_after else "The corrected file has no problems that must be corrected.")
+        pdf.multi_cell(width, 4.6, _t(
+            f"A corrected file ({fx.filename}) was produced. {fx.count} row(s) were second registers of a meter "
+            f"(for example kW demand) that repeated the main meter's CREF and meter serial, which makes Temetra "
+            f"overwrite the main meter and lose its reading. Following Itron's example, each extra register was "
+            f"given a -1, -2, ... suffix on its CREF and meter serial, LINKEDMETERSERIAL set to the original meter "
+            f"serial, and an original-meter-serial= tag in ADDTAG. Every other row is unchanged. Each account below "
+            f"lists the exact changes. {after} Please also correct the export process so future files come out "
+            f"this way."), align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.ln(4)
+
     if report.summary:
         pdf.set_font("Helvetica", "B", 12)
         pdf.cell(0, 7, "Summary", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
@@ -165,6 +185,17 @@ def render_pdf(report: Report, customer: str = "") -> bytes:
                 pdf.set_x(pdf.l_margin + 22)
                 pdf.multi_cell(width - 22, 4.3, "**How to fix:** " + _t(issue.fix).replace("**", "* *"), align="L",
                                markdown=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.ln(0.8)
+        if section.corrections:
+            pdf.set_x(pdf.l_margin + 4)
+            pdf.set_font("Helvetica", "B", 8.5)
+            pdf.set_text_color(31, 95, 191)
+            pdf.cell(0, 4.6, "Corrections made in the corrected file:", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.set_text_color(0)
+            pdf.set_font("Helvetica", "", 8.5)
+            for c in section.corrections:
+                pdf.set_x(pdf.l_margin + 22)
+                pdf.multi_cell(width - 22, 4.3, _t("- " + c.summary), align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.ln(0.8)
     if clean:
         pdf.ln(3)

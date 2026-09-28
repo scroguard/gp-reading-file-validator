@@ -395,12 +395,15 @@ def _duplicate_cref(n, get, by, crefs) -> list[Issue]:
         return []
     k = len(earlier) - 1  # 1 for the first repeat, 2 for the next...
     first_line, main_serial = earlier[0]
-    main_serial = main_serial or serial
-    linked = main_serial if k == 1 else f"{main_serial}-{k - 1}"
-    fix = (f"If this is a secondary reading for a meter (for example kW demand), append a suffix to the CREF so it is "
-           f"unique, as Itron's example does: CREF {cref}-{k}. Give the register its own meter serial as well "
-           f"(METERSERIAL {main_serial}-{k}), set LINKEDMETERSERIAL to {linked}, and add "
-           f"original-meter-serial={main_serial} to ADDTAG.")
+    if serial and main_serial and serial != main_serial:
+        fix = (f"Lines {first_line} and {n} have different meter serials ({main_serial} and {serial}), so they are "
+               f"two different meters, not two registers of one meter. Give one of them its own CREF.")
+    else:
+        # Confirmed by import: suffix both CREF and serial, link to the original serial, tag it (Itron's example).
+        fix = (f"If this is a secondary reading for a meter (for example kW demand), append -{k} to both the CREF "
+               f"and the meter serial (CREF {cref}-{k}, METERSERIAL {main_serial}-{k}), set LINKEDMETERSERIAL to the "
+               f"original meter serial {main_serial}, and add original-meter-serial={main_serial} to ADDTAG, as in "
+               f"Itron's example.")
     return [Issue(
         severity=Severity.ERROR, code="duplicate-cref", summary="Duplicate CREF (earlier meter is overwritten)",
         line=n, column=by["CREF"].index, field="CREF", page=8, fix=fix,

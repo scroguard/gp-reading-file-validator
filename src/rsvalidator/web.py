@@ -135,6 +135,20 @@ def report_pdf(token: str, customer: str = Query("", max_length=100)):
     )
 
 
+@app.get("/report/{token}/corrected.csv")
+def corrected_csv(token: str):
+    report = reports.get(token)
+    if report is None:
+        raise HTTPException(404, "This report has expired. Upload the file again to regenerate it.")
+    if report.corrected is None:
+        raise HTTPException(404, "No corrected file was produced for this report.")
+    return Response(
+        report.corrected.content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{report.corrected.filename}"'},
+    )
+
+
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}

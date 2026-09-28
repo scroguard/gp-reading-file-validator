@@ -29,6 +29,7 @@ class Section:
     title: str
     first_line: int | None
     issues: list[Issue]
+    corrections: list = field(default_factory=list)  # temetra_fix.Correction, made in the corrected file
 
     @property
     def errors(self) -> int:
@@ -57,6 +58,16 @@ class SummaryRow:
 
 
 @dataclass
+class CorrectedFile:
+    filename: str
+    content: bytes
+    count: int  # rows corrected
+    added_columns: list[str]
+    errors_after: int  # must-correct findings left in the corrected file
+    recommended_after: int
+
+
+@dataclass
 class Report:
     filename: str
     format_name: str
@@ -67,6 +78,7 @@ class Report:
     account_count: int
     sections: list[Section]
     summary: list[SummaryRow] = field(default_factory=list)
+    corrected: "CorrectedFile | None" = None
 
     @property
     def errors(self) -> int:
@@ -109,7 +121,32 @@ def validate(content: bytes, filename: str, format_key: str = "mvrs") -> Report:
     if not content:
         issues = [Issue(severity=Severity.ERROR, code="empty-file", summary="Empty file",
                         message="The uploaded file is empty.")]
-    return _build_report(filename, fmt, guide, grouping, issues)
+    report = _build_report(filename, fmt, guide, grouping, issues)
+    if format_key == "temetra-csv" and any(i.code == "duplicate-cref" for i in issues):
+        _attach_corrections(report, content, filename, grouping, issues)
+    return report
+
+
+def _attach_corrections(report: Report, content: bytes, filename: str, grouping: Grouping, issues: list[Issue]):
+    """Offer a corrected file for rows that repeat a meter as a second register (Temetra CSV)."""
+    from .temetra_fix import fix_register_duplicates
+
+    fixed = fix_register_duplicates(content, filename)
+    if fixed is None:
+        return
+    after = validate(fixed.content, fixed.filename, "temetra-csv")
+    report.corrected = CorrectedFile(fixed.filename, fixed.content, len(fixed.corrections), fixed.added_columns,
+                                     after.errors, after.recommended)
+    by_line = {c.line: c for c in fixed.corrections}
+    for issue in issues:
+        c = by_line.get(issue.line) if issue.code == "duplicate-cref" else None
+        if c:
+            issue.fix = "Corrected automatically in the corrected file: " + "; ".join(c.changes) + "."
+    sections = {("account", i): s for i, s in enumerate(s for s in report.sections if s.kind == "account")}
+    for c in fixed.corrections:
+        owner = grouping.owner.get(c.line, ("file", 0))
+        section = sections.get(owner, report.sections[0])
+        section.corrections.append(c)
 
 
 def _validate_mvrs(content: bytes) -> tuple[list[Issue], Grouping, str]:

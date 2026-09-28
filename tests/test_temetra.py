@@ -1,5 +1,8 @@
 """Temetra CSV and XML import validation. All fixtures are synthetic."""
 
+import csv
+import io
+
 from test_fcs import xml_file
 
 from rsvalidator.engine import validate
@@ -93,19 +96,49 @@ def test_generic_meter_model():
     assert codes(issues) == ["generic-model"]
 
 
-def test_duplicate_cref_must_be_fixed_with_suggested_correction():
-    # Temetra imports it, but the later row overwrites the earlier meter (confirmed: the kW register replaced kWh).
+def test_duplicate_cref_must_be_fixed_and_a_corrected_file_is_offered():
+    # A kWh/kW meter exported as two rows: the repeated CREF overwrote the kWh meter on import (confirmed).
     rows = [row(0), row(1, CREF="C000", METERSERIAL="1234567", METERUNITS="kW"),
             row(2, CREF="C000", METERSERIAL="1234567", METERUNITS="kW")]
-    _, issues = run(tcsv(rows))
+    report, issues = run(tcsv(rows))
     dups = [i for i in issues if i.code == "duplicate-cref"]
     assert [d.severity for d in dups] == [Severity.ERROR, Severity.ERROR]
     assert dups[0].message.startswith("Duplicate CREF detected on line 3: CREF C000 is also used on line 2.")
-    assert "CREF C000-1" in dups[0].fix and "METERSERIAL 1234567-1" in dups[0].fix
-    assert "LINKEDMETERSERIAL to 1234567," in dups[0].fix and "original-meter-serial=1234567" in dups[0].fix
-    assert "CREF C000-2" in dups[1].fix and "LINKEDMETERSERIAL to 1234567-1," in dups[1].fix
-    # the repeated serial is still a warning that points at the CREF correction
-    assert codes(issues, Severity.WARNING) == ["duplicate-value", "duplicate-value"]
+    assert dups[0].fix.startswith("Corrected automatically in the corrected file: CREF C000 \u2192 C000-1;")
+
+    fixed = report.corrected
+    assert fixed.filename == "assets-corrected.csv" and fixed.count == 2 and fixed.errors_after == 0
+    out = list(csv.reader(io.StringIO(fixed.content.decode())))
+    h = out[0]
+    get = lambda r, name: r[h.index(name)]
+    assert [get(r, "CREF") for r in out[1:]] == ["C000", "C000-1", "C000-2"]
+    assert [get(r, "METERSERIAL") for r in out[1:]] == ["1234567", "1234567-1", "1234567-2"]
+    assert h[-1] == "LINKEDMETERSERIAL" and fixed.added_columns == ["LINKEDMETERSERIAL"]
+    assert [get(r, "LINKEDMETERSERIAL") for r in out[1:]] == ["", "1234567", "1234567"]
+    assert get(out[2], "ADDTAG").endswith("original-meter-serial=1234567")
+    assert out[1] == next(csv.reader([",".join(row(0))])) + [""]  # uncorrected row: same values, empty new column
+
+    # each correction is listed in the section of the account it belongs to
+    noted = [(sec.title, c) for sec in report.sections for c in sec.corrections]
+    assert [c.line for _, c in noted] == [3, 4]
+    assert "account # A101" in noted[0][0] and "account # A102" in noted[1][0]
+    assert "METERSERIAL 1234567 \u2192 1234567-1" in noted[0][1].summary
+
+
+def test_different_meters_sharing_a_cref_are_not_corrected():
+    _, issues = run(tcsv([row(0), row(1, CREF="C000")]))
+    [dup] = [i for i in issues if i.code == "duplicate-cref"]
+    assert "two different meters" in dup.fix
+
+
+def test_corrected_file_keeps_other_rows_byte_for_byte():
+    header = HEADER + ["LINKEDMETERSERIAL"]
+    rows = [row(0) + [""], row(1, CREF="C000", METERSERIAL="1234567") + [""]]
+    content = tcsv(rows, header).replace(b"SMITH JOHN", b"SMITH  JOHN")
+    report, _ = run(content)
+    before, after = content.split(b"\r\n"), report.corrected.content.split(b"\r\n")
+    assert before[0] == after[0] and before[1] == after[1] and before[2] != after[2]
+    assert report.corrected.added_columns == []
 
 
 def test_tags():

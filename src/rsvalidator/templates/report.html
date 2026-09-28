@@ -42,6 +42,36 @@
   </dl>
 </section>
 
+{% if report.corrected %}
+{% set fx = report.corrected %}
+<section class="card corrected">
+  <div class="head-row">
+    <div>
+      <h2>Corrected file available</h2>
+      <p>{{ '{:,}'.format(fx.count) }} row{{ 's were' if fx.count != 1 else ' was' }} corrected automatically. Each is a
+        second register of a meter (for example kW demand) that repeated the main meter's CREF and meter serial, so
+        Temetra would have overwritten the main meter and lost its reading. Following Itron's example, each extra register
+        now has:</p>
+      <ul>
+        <li>a <strong>-1</strong>, <strong>-2</strong>, &hellip; suffix on its CREF and meter serial,</li>
+        <li><strong>LINKEDMETERSERIAL</strong> set to the original meter serial, and</li>
+        <li>an <strong>original-meter-serial=</strong> tag in ADDTAG.</li>
+      </ul>
+      {% if fx.added_columns %}<p class="muted">Added column{{ 's' if fx.added_columns|length > 1 }}: {{ fx.added_columns|join(', ') }}.</p>{% endif %}
+      <p class="muted">Every other row is unchanged. Each account below lists the exact changes made to it.
+        {% if fx.errors_after %}The corrected file still has {{ fx.errors_after }} problem{{ 's' if fx.errors_after != 1 }}
+        that must be corrected by hand, listed below without a "Corrected automatically" note.
+        {% else %}The corrected file has no problems that must be corrected{% if fx.recommended_after %}
+        ({{ fx.recommended_after }} highly recommended){% endif %}.{% endif %}
+        Correct the export process as well, so future files come out this way.</p>
+    </div>
+    <div class="actions">
+      <a class="btn primary" href="{{ url_for('corrected_csv', token=token).path }}">Download corrected CSV</a>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 {% if report.summary %}
 <section class="card">
   <h2>Summary</h2>
@@ -114,6 +144,14 @@
       </li>
       {% endfor %}
     </ol>
+    {% if s.corrections %}
+    <div class="corrections">
+      <h3>Corrections made in the corrected file</h3>
+      <ul>
+        {% for c in s.corrections %}<li>{{ c.summary }}</li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
   </details>
   {% endfor %}
   {% if clean_accounts %}
