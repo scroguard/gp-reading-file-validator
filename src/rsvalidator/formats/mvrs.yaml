@@ -18,6 +18,9 @@
 #   pad         filler bytes; must be blank
 #   note        why a field deviates from the guide's general conventions
 #   reserved    contents not checked (FCS accepts data in reserved bytes)
+#   blank_warning   a blank required field is a warning, not an error
+#   justify_warning leading spaces (not left-justified) are a warning, not an error
+#   rarely_used     any value is flagged for reference as a warning (field not normally used)
 #   leading_spaces  may start with blanks: addresses (street-number sub-field,
 #               Address 2 continuations) and free-form messages/descriptions.
 #               Other A and A/N fields, including names and account numbers,
@@ -221,7 +224,7 @@ records:
     fields:
       - *route_number
       - {name: number_of_meters, label: Number of Meters, start: 12, end: 14, type: N, required: true, page: 70}
-      - {name: account_number, label: Account Number, start: 15, end: 34, type: AN, charset: text, page: 49,
+      - {name: account_number, label: Account Number, start: 15, end: 34, type: AN, charset: text, page: 49, justify_warning: true,
          note: "Typed A/N, but punctuation such as . and - is accepted by MV-RS and FCS (user decision)."}
       - {name: name, label: Name, start: 35, end: 54, type: A, charset: text, mixed_case: true, page: 66,
          note: "Typed A, but digits and punctuation in names are accepted by MV-RS and FCS (user decision)."}
@@ -241,7 +244,7 @@ records:
     page: 15
     fields:
       - *route_number
-      - {name: account_number, label: Account Number, start: 12, end: 31, type: AN, charset: text, page: 49,
+      - {name: account_number, label: Account Number, start: 12, end: 31, type: AN, charset: text, page: 49, justify_warning: true,
          note: "Typed A/N, but punctuation such as . and - is accepted by MV-RS and FCS (user decision)."}
       - {name: customer_name, label: Customer Name, start: 32, end: 51, type: A, charset: text, mixed_case: true, page: 54,
          note: "Typed A, but digits and punctuation in names are accepted by MV-RS and FCS (user decision)."}
@@ -403,8 +406,11 @@ records:
          note: "Tone codes 04, 06-14 (p.78-79); 0000 is the default when not used (p.24)."}
       - {name: reserved_4, label: Reserved, start: 55, end: 62, type: AN, reserved: true}
       - {name: tamper, label: Tamper, start: 63, end: 66, type: N, required: true, range: [0, 1023], page: 83}
-      - {name: concentrator_ert, label: Concentrator ERT Indicator, start: 67, end: 67, type: A, required: true, values: [Y, N], page: 53}
+      - {name: concentrator_ert, label: Concentrator ERT Indicator, start: 67, end: 67, type: A, required: true, values: [Y, N], page: 53,
+         blank_warning: true, note: "Marked Required (default N); blank is a warning (user decision)."}
       - {name: fifty_ess_flag, label: 50ESS Flag, start: 68, end: 68, type: AN, values: ["0", "1", "2", ""], page: 49}
-      - {name: protocol_433, label: 433 Protocol, start: 69, end: 69, type: A, values: [R, P, I, ""], page: 49}
-      - {name: iwn_encoder, label: IWN Encoder, start: 70, end: 70, type: A, values: [A, B, C, D, ""], page: 60}
+      - {name: protocol_433, label: 433 Protocol, start: 69, end: 69, type: A, values: [R, P, I, ""], page: 49, rarely_used: true,
+         note: "Not normally used; any value is flagged for reference (user decision)."}
+      - {name: iwn_encoder, label: IWN Encoder, start: 70, end: 70, type: A, values: [A, B, C, D, ""], page: 60, rarely_used: true,
+         note: "Not normally used; any value is flagged for reference (user decision)."}
       - {name: pad, label: Pad, start: 71, end: 126, type: AN, pad: true}

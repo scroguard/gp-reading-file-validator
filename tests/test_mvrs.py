@@ -365,3 +365,26 @@ def test_issues_are_grouped_by_account():
     assert report.accounts_with_errors == 1
     [row] = report.summary
     assert row.count == 1 and row.accounts == 1 and row.first_line == 9
+
+
+# --- user decisions on real-file patterns ---------------------------------------
+
+
+def test_433_protocol_and_iwn_encoder_are_flagged_for_reference():
+    body = account(0, extra={"RFF": {"protocol_433": "0", "iwn_encoder": "A"}})
+    _, issues = run(build_file(body))
+    assert codes(issues, Severity.WARNING) == ["rarely-used", "rarely-used"]
+    assert codes(issues, Severity.ERROR) == []
+    assert "not one of the guide's values" in only(issues, "rarely-used")[0].message
+
+
+def test_blank_concentrator_ert_is_a_warning():
+    _, issues = run(build_file(account(0, extra={"RFF": {"concentrator_ert": " "}})))
+    [issue] = issues
+    assert issue.code == "required-blank" and issue.severity == Severity.WARNING
+
+
+def test_account_number_starting_with_spaces_is_a_warning():
+    _, issues = run(build_file(account(0, cus=dict(account_number="       1234567"))))
+    [issue] = issues
+    assert issue.code == "not-left-justified" and issue.severity == Severity.WARNING

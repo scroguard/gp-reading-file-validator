@@ -139,7 +139,7 @@ Decisions and caveats:
 - CSV: elements marked "XML Import: Required" are **not** required in CSV; FCS fills in defaults (p.3). Only `WorkSet.WorkSetID` (the first column) and `Meter.MeterNumber` are required. Blank CSV values are accepted as "use the default", but a blank MeterNumber is an error.
 - CSV route IDs shorter than 8 characters are accepted, because FCS pads them (p.2).
 - Export-only elements or columns (e.g. `MeterSessionInput.ChangeIndicator`) are **warnings**: FCS sets them itself. `samples/sitka-fcs.csv` contains one.
-- XML element order follows the guide's table order and is reported as an error ("sequence is critical", p.10). The guide does not name the root element and doesn't include the SDK XSDs. **XML validation has only been tested against synthetic files.**
+- XML element order follows the guide's table order and is reported as an error ("sequence is critical", p.10). The user confirmed: follow the guide until the SDK XSDs are available (being requested from Itron support). The guide does not name the root element and doesn't include the SDK XSDs. **XML validation has only been tested against synthetic files.**
 - `samples/sitka-fcs.csv` was imported by FCS without issues. It must produce **zero errors**; `tests/test_samples.py` enforces this. Its two warnings are expected: trailing spaces in one customer name, and the export-only `ChangeIndicator` column.
 
 ## Temetra import formats (CSV and XML)
@@ -174,6 +174,9 @@ Accepted in practice, even where the guide says otherwise:
 - **Account numbers, meter numbers and Optical Probe Recorder IDs** may contain punctuation such as `.` and `-` (`text` charset).
 - **Blank Read Type** (RDG).
 - **HHF Position `0`** means not used, like a blank.
+- **433 Protocol and IWN Encoder** (RFF bytes 69–70) are not normally used. Any value is flagged for reference as a warning (`rarely_used`).
+- **Blank Concentrator ERT Indicator** (RFF byte 67) is a warning (`blank_warning`).
+- **Account numbers starting with spaces** (CUS/CSX) are a warning (`justify_warning`).
 - **Blank MTS Special Message Text**, as long as the MTR Special Message Indicator is Y.
 - **Reserved bytes are not checked** (`reserved: true`).
 

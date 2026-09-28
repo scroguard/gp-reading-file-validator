@@ -41,6 +41,9 @@ class FieldSpec:
     pad: bool = False
     reserved: bool = False
     leading_spaces: bool = False
+    blank_warning: bool = False
+    justify_warning: bool = False
+    rarely_used: bool = False
     check: str | None = None
     page: int | None = None
     note: str | None = None
@@ -133,6 +136,9 @@ def _field(raw: dict, charsets: dict[str, Charset]) -> FieldSpec:
         pad=raw.get("pad", False),
         reserved=raw.get("reserved", False),
         leading_spaces=raw.get("leading_spaces", False),
+        blank_warning=raw.get("blank_warning", False),
+        justify_warning=raw.get("justify_warning", False),
+        rarely_used=raw.get("rarely_used", False),
         check=raw.get("check"),
         page=raw.get("page"),
         note=raw.get("note"),

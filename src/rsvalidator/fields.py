@@ -71,9 +71,19 @@ class FieldChecker:
             if f.check == "rf_frequency":
                 return self._rf_frequency_blank(issue, data, value)
             if f.is_required(record_id, self.spec.trailer_ids):
+                if f.blank_warning:
+                    return [issue("required-blank", f"Required {f.label} is blank",
+                                  "The guide marks this field as required, but it is blank.", Severity.WARNING)]
                 return [issue("required-blank", f"Required {f.label} is blank",
                               "This field is required, but it is blank.")]
             return []
+
+        if f.rarely_used:
+            valid = f.values is None or value.strip() in f.values
+            return [issue("rarely-used", f"{f.label} is set (not normally used)",
+                          f"This field is not normally used, so it is flagged for reference. It contains "
+                          f"{_show(value)}" + ("." if valid else f", which is not one of the guide's values "
+                          f"({', '.join(v or 'blank' for v in f.values)})."), Severity.WARNING)]
 
         if f.type == "N":
             return self._numeric(issue, f, value)
@@ -150,7 +160,8 @@ class FieldChecker:
         if value[0] == " " and not f.leading_spaces:
             issues.append(issue("not-left-justified", f"{f.label} not left-justified",
                                 f"{TYPE_LABELS[f.type].capitalize()} fields must be left-justified and blank-filled "
-                                f"to the right, but this record contains \"{value}\" (starts with spaces)."))
+                                f"to the right, but this record contains \"{value}\" (starts with spaces).",
+                                Severity.WARNING if f.justify_warning else Severity.ERROR))
         if f.values is not None and trimmed not in f.values and not bad:
             allowed = ", ".join(v or "blank" for v in f.values)
             issues.append(issue("invalid-value", f"{f.label}: invalid value",
