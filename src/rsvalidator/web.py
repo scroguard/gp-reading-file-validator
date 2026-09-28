@@ -25,12 +25,41 @@ from .pdf import render_pdf
 MAX_UPLOAD_MB = int(os.environ.get("RSV_MAX_UPLOAD_MB", "50"))
 REPORT_TTL_SECONDS = int(os.environ.get("RSV_REPORT_TTL_MINUTES", "30")) * 60
 MAX_CACHED_REPORTS = int(os.environ.get("RSV_MAX_CACHED_REPORTS", "20"))
+# Sub-path the app is served under by a reverse proxy, e.g. "/validator". Empty = site root.
+BASE_PATH = os.environ.get("RSV_BASE_PATH", "").strip().strip("/")
+BASE_PATH = f"/{BASE_PATH}" if BASE_PATH else ""
 
 HERE = Path(__file__).parent
 app = FastAPI(title="Reading System File Validator", docs_url=None, redoc_url=None, openapi_url=None)
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 templates = Jinja2Templates(directory=HERE / "templates")
 templates.env.globals["version"] = __version__
+
+
+class BasePathMiddleware:
+    """Serves the app under a sub-path, whether or not the proxy strips it.
+
+    Requests for /validator/x and /x both reach route /x, and generated links
+    carry the /validator prefix.
+    """
+
+    def __init__(self, app, base: str):
+        self.app = app
+        self.base = base
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            path = scope["path"]
+            if path == self.base:
+                path = self.base + "/"
+            elif not path.startswith(self.base + "/"):
+                path = self.base + path
+            scope = dict(scope, path=path, root_path=self.base)
+        await self.app(scope, receive, send)
+
+
+if BASE_PATH:
+    app.add_middleware(BasePathMiddleware, base=BASE_PATH)
 
 
 class ReportCache:

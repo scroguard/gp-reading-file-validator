@@ -39,6 +39,10 @@ Settings (environment variables):
 | `RSV_MAX_UPLOAD_MB` | 50 | Largest file accepted |
 | `RSV_REPORT_TTL_MINUTES` | 30 | How long a finished report stays available for PDF download |
 | `RSV_MAX_CACHED_REPORTS` | 20 | How many reports are kept in memory at once |
+| `RSV_BASE_PATH` | *(empty)* | Sub-path when the proxy serves the app under one, e.g. `/validator`. Works whether or not the proxy strips the prefix. |
+
+If you see `{"detail":"Not Found"}`, the app is running but received a path it doesn't know. This is usually a proxy
+serving it under a sub-path without `RSV_BASE_PATH` set.
 
 Uploaded files are never saved. Uploads larger than 1 MB are briefly buffered in `/tmp` while being read. In the
 container, `/tmp` is an in-memory tmpfs (see `docker-compose.yml`) and the rest of the filesystem is read-only, so

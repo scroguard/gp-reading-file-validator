@@ -5,7 +5,7 @@
   <p class="muted">Upload a file to check it against its published interface guide. Every problem is reported with its line
     and byte positions, grouped by account.</p>
   {% if error %}<p class="alert">{{ error }}</p>{% endif %}
-  <form method="post" action="{{ url_for('validate_upload') }}" enctype="multipart/form-data" id="upload-form">
+  <form method="post" action="{{ url_for('validate_upload').path }}" enctype="multipart/form-data" id="upload-form">
     <label class="field">
       <span>File format</span>
       <select name="format">

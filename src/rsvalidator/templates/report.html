@@ -13,8 +13,8 @@
       <p class="muted">Checked {{ report.created.strftime('%B %-d, %Y at %-I:%M %p') }} against {{ report.guide }}</p>
     </div>
     <div class="actions">
-      <a class="btn primary" href="{{ url_for('report_pdf', token=token) }}">Download PDF</a>
-      <a class="btn" href="{{ url_for('index') }}">Validate another file</a>
+      <a class="btn primary" href="{{ url_for('report_pdf', token=token).path }}">Download PDF</a>
+      <a class="btn" href="{{ url_for('index').path }}">Validate another file</a>
     </div>
   </div>
   <div class="verdict {{ 'pass' if report.valid else 'fail' }}">

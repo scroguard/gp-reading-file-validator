@@ -1,5 +1,6 @@
 import re
 
+import pytest
 from fastapi.testclient import TestClient
 from mvrs_builder import account, build_file
 
@@ -45,3 +46,30 @@ def test_empty_and_oversize_uploads(monkeypatch):
 def test_unknown_format_rejected():
     r = client.post("/validate", data={"format": "nope"}, files={"file": ("a.dat", b"x", "text/plain")})
     assert r.status_code == 400
+
+
+def test_links_are_paths_not_absolute_urls():
+    # Behind a reverse proxy the Host header may be the container's, so links must not include it.
+    r = client.get("/", headers={"host": "127.0.0.1:9898"})
+    assert 'href="/static/app.css"' in r.text and "127.0.0.1" not in r.text
+
+
+@pytest.mark.parametrize("strip_prefix", [True, False], ids=["proxy-strips-prefix", "proxy-keeps-prefix"])
+def test_served_under_a_sub_path(strip_prefix):
+    sub = TestClient(web.BasePathMiddleware(web.app, "/validator"))
+    prefix = "" if strip_prefix else "/validator"
+    page = sub.get(prefix + "/")
+    assert page.status_code == 200
+    assert 'href="/validator/static/app.css"' in page.text and 'action="/validator/validate"' in page.text
+    assert sub.get(prefix + "/static/app.css").status_code == 200
+    r = sub.post(prefix + "/validate", data={"format": "mvrs"},
+                 files={"file": ("a.dat", build_file(), "text/plain")})
+    [pdf_url] = re.findall(r'href="([^"]*/report/[^"]+\.pdf)"', r.text)
+    assert pdf_url.startswith("/validator/report/")
+    path = pdf_url if not strip_prefix else pdf_url.removeprefix("/validator")
+    assert sub.get(path).status_code == 200
+
+
+def test_bare_sub_path_serves_the_upload_page():
+    sub = TestClient(web.BasePathMiddleware(web.app, "/validator"))
+    assert sub.get("/validator").status_code == 200

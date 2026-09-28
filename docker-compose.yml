@@ -20,6 +20,10 @@ services:
       RSV_MAX_UPLOAD_MB: "50"          # largest file accepted
       RSV_REPORT_TTL_MINUTES: "30"     # how long a report stays downloadable as PDF
       RSV_MAX_CACHED_REPORTS: "20"     # reports kept in memory at once
+      # If your reverse proxy serves the app under a sub-path (for example
+      # https://example.com/validator/), set it here. Leave empty when the app has
+      # its own host name (https://validator.example.com/).
+      RSV_BASE_PATH: ""
     read_only: true
     tmpfs:
       - /tmp
