@@ -1,7 +1,8 @@
 services:
   validator:
+    # Built locally from this repository; there is no published image to pull.
     build: .
-    image: rsvalidator:latest
+    pull_policy: build
     container_name: rsvalidator
     restart: unless-stopped
     ports:
