@@ -9,7 +9,8 @@ Supported in v1.0:
 | Application | Format | Status |
 |---|---|---|
 | MV-RS | Host Download (fixed-width, 128-byte records) | Available |
-| FCS | CSV, XML | Planned |
+| FCS | CSV import | Available |
+| FCS | XML import | Available (not yet tested against a real customer file) |
 | Temetra | CSV, XML | Planned |
 
 Validation is strict. A file that passes follows the guide exactly, so it will import into MV-RS, FCS and Temetra.

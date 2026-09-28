@@ -52,7 +52,7 @@ def render_pdf(report: Report, customer: str = "") -> bytes:
     pdf.add_page()
     width = pdf.epw
 
-    kind = "Host download file report"
+    kind = "Host download file report" if report.format_name.startswith("MV-RS") else f"{report.format_name} file report"
     pdf.set_font("Helvetica", "B", 16)
     pdf.multi_cell(width, 8, _t(f"{kind} generated for {customer}" if customer else kind),
                    align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
@@ -126,7 +126,8 @@ def render_pdf(report: Report, customer: str = "") -> bytes:
         for issue in section.issues:
             where = " / ".join(x for x in (
                 f"Line {issue.line}" if issue.line else None,
-                issue.bytes_label,
+                issue.position_label,
+                issue.path,
                 issue.record,
             ) if x)
             pdf.set_x(pdf.l_margin + 4)

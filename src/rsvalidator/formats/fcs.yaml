@@ -1,0 +1,108 @@
+# FCS import files (CSV and XML): structure and rules not captured in the
+# generated element dictionary (fcs_elements.yaml).
+#
+# Source: Itron "FCS CSV and XML File Format Reference Guide" TDC-1664-002
+# (29 March 2017). Page numbers are the guide's printed pages.
+
+format: FCS Import
+guide: Itron FCS CSV and XML File Format Reference Guide TDC-1664-002 (March 2017)
+
+xml:
+  namespace: http://www.itron.com/nVanta          # p.10
+  # Top-level sections under the root element, in order (p.15). The root
+  # element's own name is not given in the guide (it is defined in the SDK XSDs).
+  sections: [Codes, Messages, WorkSets]
+  # Collections inside <Codes>, in the required order (diagram p.19), each
+  # holding one or more of the named entity.
+  codes:
+    - {collection: SkipCodes, entity: SkipCode}
+    - {collection: ForceCompleteReasonCodes, entity: ForceCompleteReasonCode}
+    - {collection: InstructionLocationCodes, entity: InstructionLocationCode}
+    - {collection: SurveyCodes, entity: SurveyCode}
+    - {collection: TroubleCommentCodes, entity: TroubleCommentCode}
+    - {collection: MeterTypeCodes, entity: MeterTypeCode}
+    - {collection: EndpointTranslations, entity: EndpointTranslation}
+    - {collection: ReadTypeCodes, entity: ReadTypeCode}
+    - {collection: ReadItemLists, entity: ReadItemList}
+    - {collection: ReadTypeToTIMTagNumbers, entity: ReadTypeToTIMTagNumber}
+    - {collection: OpticalPasswords, entity: OpticalPassword}
+    - {collection: TIMConfigFiles, entity: TIMConfigFile}
+    - {collection: WandTranslations, entity: WandTranslation}
+    - {collection: SurveyResponseCodes, entity: SurveyResponseCode}
+  messages: {collection: Messages, entity: Message}
+  worksets: {collection: WorkSets, entity: WorkSet}
+  # Attributes allowed on section and collection elements.
+  attributes:
+    Ownership: {note: "Not currently used; ignored (p.15)."}
+    ForceLoad: {values: ["true", "false", "True", "False"], note: "On code collections (p.20)."}
+  # Child entities the guide places in prose or diagrams but not in the
+  # parent's element table. Accepted anywhere among the parent's elements.
+  extra_children:
+    WorkSet: [SegmentInformation]                  # p.51 "SegmentInformation entity (within WorkSet entity)"
+    Work: [GPSInformation, CustomDataField]        # p.51 Work contains optional GPSInformation and CustomDataField
+    MeterSessionInput: [AdvancedAMRRequest]        # diagram p.53; the table on p.95 puts it in MeterSessionInputRF
+  # Only one of these input entities may appear in a Meter's
+  # MeterSessionInput; with more than one the meter does not load (p.51).
+  single_input: [MeterSessionInputRF, MeterSessionInputRemote, MeterSessionInputOptical, MeterSessionInputOpRd]
+  # "The special character & is not allowed in the FCS XML import file" (p.16).
+  forbidden_characters: "&"
+
+csv:
+  first_column: WorkSet.WorkSetID                   # p.1-2; otherwise the import fails
+  required_columns: [WorkSet.WorkSetID, Meter.MeterNumber]   # p.2
+  # Tables whose elements may be CSV columns (p.2-3).
+  tables: [WorkSet, Customer, Meter, GPSInformation, MeterSessionInput, MeterSessionInputRemote,
+           MeterSessionInputRF, MeterSessionInputOptical, AdvancedAMRRequest]
+  # Tables available to XML import but not to CSV (p.4).
+  not_available: [SegmentInformation, Work, MeterSessionInputOpRd, ChannelConfiguration]
+  # CustomDataField columns are written Customer.CustomDataField.<element> or
+  # Meter.CustomDataField.<element>, at most one of each (p.1).
+  custom_data_parents: [Customer, Meter]
+  # Tables that may repeat as <table>.<n>.<element> (p.3).
+  repeatable: [AdvancedAMRRequest]
+  # "XML Import: Required" elements generally need not be in the CSV file;
+  # FCS fills in defaults (p.3). Only the columns above are required.
+  enforce_xml_required: false
+
+# MeterSessionInput.ReadMethod -> the input entity that must carry its data
+# (CSV p.3; XML p.51). A non-manual read method without that data is changed
+# to manual (0) on import, and data for a different method is not saved.
+read_method_children:
+  "1": MeterSessionInputOptical
+  "2": MeterSessionInputRemote
+  "3": MeterSessionInputRF
+  "4": MeterSessionInputRF
+
+# WorkSet.WorkSetID rules (p.2, p.54).
+workset_id:
+  length: 8
+  forbidden: "\\/:*?\"<>|&'[= "
+  csv_short_ok: true      # CSV: shorter values are padded with leading zeros (p.2)
+
+# Hand corrections to the generated dictionary, applied on load. Each fixes a
+# parsing miss or a guide inconsistency found by audit against the guide.
+overrides:
+  - {entity: SkipCode, element: PhotoPromptIndicator, drop_values: ["XML"],
+     note: "Parser picked up the lowercase 'XML import: Optional' line as a value (p.24)."}
+  - {entity: EndpointTranslation, element: EndpointType,
+     values: [["0", ""], ["1", ""], ["2", ""], ["3", ""], ["4", ""], ["5", ""], ["7", ""], ["8", ""],
+              ["11", ""], ["12", ""], ["13", ""], ["14", ""], ["15", ""]],
+     note: "Value list is in running text on p.34."}
+  - {entity: SurveyCode, element: SurveyTypeIndicator, values: [["1", ""], ["2", ""], ["3", ""], ["4", ""]], note: "p.29"}
+  - {entity: Customer, element: SequenceWithinWork, values: [["1", "A Work entity contains only one Customer"]], note: "p.59"}
+  - {entity: Customer, element: PostalCode, min_len: null, max_len: 11,
+     note: "Guide says 'minimum of 11 characters' (p.61); almost certainly a typo for maximum."}
+  - {entity: Meter, element: Segment, values: [], num_range: [1, 9999], not_all_zeros: true,
+     note: "Walk-by routes 1-9999, drive-by routes 1-255, never all zeros (p.70). The parser read 'Walk-by'/'Drive-by' as values."}
+  - {entity: MeterSessionInput, element: ReadMethod, drop_values: ["6", "7"],
+     note: "6 is no longer used; 7 is reserved for ReadItem (p.78)."}
+  - {entity: MeterSessionInputOptical, element: MeterIDMismatchFlag, type: Boolean, import_rule: optional,
+     note: "Kept for backward compatibility; False/True (p.84)."}
+  - {entity: MeterSessionInputOpRd, element: ConstantMultiplier, type: Double, note: "Type not stated (p.89); as MeterSessionInput."}
+  - {entity: MeterSessionInputOpRd, element: ConstantMultiplierValidInd, type: Integer, note: "Type not stated (p.90); as MeterSessionInput."}
+  - {entity: AdvancedAMRRequest, element: RequestedDate, import_rule: optional,
+     note: "Marked Required, but only used for request types 1 and 2 (p.103)."}
+  - {entity: AdvancedAMRRequest, element: RequestedTime, import_rule: optional,
+     note: "Marked Required, but only used for request types 1, 2 and 3 (p.103)."}
+  - {entity: CustomDataField, element: Sequence, import_rule: optional,
+     note: "Marked Required, but set automatically when not passed (p.64)."}

@@ -18,7 +18,7 @@ docker compose up -d --build                           # container, http://127.0
 
 A Dockerized web app that validates meter-reading-system flat files against the vendors' published interface guides. Users upload a file through a web UI; the app reports every formatting error on screen, with a downloadable PDF. Distributed via git.
 
-v1.0 scope — 5 formats across 3 applications:
+v1.0 scope — 5 formats across 3 applications. MV-RS, FCS CSV and FCS XML are implemented; Temetra is next.
 
 | Application | Formats | Notes |
 |---|---|---|
@@ -115,6 +115,32 @@ To add a format (FCS, Temetra):
 - Give it its own structure/rules module. The CSV and XML formats will need a different line and field layer.
 
 `mvrs.yaml` byte positions were independently audited against the guide (all correct). The `page` values in it are the guide's printed page numbers.
+
+## FCS import formats (CSV and XML)
+
+Source: `samples/FCS_v4.0_CSV_and_XML_File_Format_Reference_Guide_TDC-1664-002.pdf` (Itron, March 2017), 367 pages. Printed page = PDF page − 10.
+- CSV import rules: printed pages 1–4.
+- XML basics: pages 9–14.
+- XML Import File chapter: pages 15–108. Every element is defined here, and CSV uses the same definitions.
+- The export chapters (pp. 109+) are out of scope, except for the list of export-only element names.
+
+Both formats share one element dictionary:
+- `formats/fcs_elements.yaml` is **generated**: `pdftotext -layout <guide>.pdf guide.txt && .venv/bin/python tools/extract_fcs_guide.py guide.txt src/rsvalidator/formats/fcs_elements.yaml`. Don't hand-edit it.
+- `formats/fcs.yaml` is hand-written. It holds:
+  - the XML structure (sections, the order of code collections, parent/child links the element tables omit)
+  - the CSV rules
+  - the ReadMethod → input-entity links
+  - `overrides:`, the corrections to parser misses and guide inconsistencies found by audit
+- `fcs_spec.py` turns each element's free-text "Valid values" into checks (length, range, formats, enumerations).
+- `fcs_csv.py` validates CSV: a header of `Table.Element` columns, one reading per row, accounts grouped from consecutive rows with the same WorkSetID and AccountNumber.
+- `fcs_xml.py` validates XML with lxml, with entity resolution and network access off. Locations are line numbers plus element paths.
+
+Decisions and caveats:
+- CSV: elements marked "XML Import: Required" are **not** required in CSV; FCS fills in defaults (p.3). Only `WorkSet.WorkSetID` (the first column) and `Meter.MeterNumber` are required. Blank CSV values are accepted as "use the default", but a blank MeterNumber is an error.
+- CSV route IDs shorter than 8 characters are accepted, because FCS pads them (p.2).
+- Export-only elements or columns (e.g. `MeterSessionInput.ChangeIndicator`) are **warnings**: FCS sets them itself. `samples/sitka-fcs.csv` contains one.
+- XML element order follows the guide's table order and is reported as an error ("sequence is critical", p.10). The guide does not name the root element and doesn't include the SDK XSDs. **XML validation has only been tested against synthetic files.**
+- `samples/sitka-fcs.csv` validates with 0 errors. Whether FCS actually accepted it is unconfirmed.
 
 ## Validation policy decisions (from the user)
 

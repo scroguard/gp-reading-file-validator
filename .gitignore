@@ -11,3 +11,5 @@ __pycache__/
 *.dat
 *.pdf
 .DS_Store
+*.csv
+*.xml

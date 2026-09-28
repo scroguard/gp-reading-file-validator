@@ -88,7 +88,7 @@
       <li class="{{ i.severity.value }}" data-cat="{{ cats.index(i.category) }}">
         <div class="where">
           {% if i.line %}<span class="chip">Line {{ i.line }}</span>{% endif %}
-          {% if i.bytes_label %}<span class="chip">{{ i.bytes_label }}</span>{% endif %}
+          {% if i.position_label %}<span class="chip">{{ i.position_label }}</span>{% endif %}{% if i.path %}<span class="chip rec">{{ i.path }}</span>{% endif %}
           {% if i.record %}<span class="chip rec">{{ i.record }}</span>{% endif %}
           <span class="tag {{ i.severity.value }}">{{ i.severity.value }}</span>
         </div>

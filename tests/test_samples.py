@@ -13,6 +13,7 @@ from rsvalidator.engine import validate
 from rsvalidator.pdf import render_pdf
 
 SAMPLES = sorted((Path(__file__).parent.parent / "samples").glob("*.dat"))
+CSV_SAMPLES = sorted((Path(__file__).parent.parent / "samples").glob("*.csv"))
 
 
 @pytest.mark.skipif(not SAMPLES, reason="no local sample files")
@@ -36,3 +37,10 @@ def test_file_accepted_by_fcs_has_no_errors():
     # FCS imported this file without issues; everything in it must pass (warnings allowed).
     report = validate(FCS_ACCEPTED.read_bytes(), FCS_ACCEPTED.name)
     assert report.errors == 0
+
+
+@pytest.mark.skipif(not CSV_SAMPLES, reason="no local FCS CSV samples")
+@pytest.mark.parametrize("path", CSV_SAMPLES, ids=[p.name for p in CSV_SAMPLES])
+def test_fcs_csv_sample_validates(path):
+    report = validate(path.read_bytes(), path.name, "fcs-csv")
+    assert report.line_count > 0 and report.account_count > 0

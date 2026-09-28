@@ -23,6 +23,17 @@ class Issue:
     field: str | None = None  # field label, e.g. "Account Number"
     page: int | None = None  # interface guide page for the rule
     summary: str | None = None  # short category label for the summary table
+    column: int | None = None  # 1-based CSV column
+    path: str | None = None  # XML element path, e.g. "WorkSet/Work/Customer/Meter"
+    owner: tuple[str, int] | None = None  # report section, when not implied by the line
+
+    @property
+    def position_label(self) -> str | None:
+        if self.start is not None:
+            return self.bytes_label
+        if self.column is not None:
+            return f"column {self.column}"
+        return None
 
     @property
     def bytes_label(self) -> str | None:

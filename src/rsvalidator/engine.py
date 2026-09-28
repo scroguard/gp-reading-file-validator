@@ -8,13 +8,17 @@ from datetime import datetime
 
 from . import mvrs
 from .fields import FieldChecker
+from .grouping import Grouping
 from .issues import Issue, Severity
 from .lines import check_framing, split_lines
 from .spec import load_format
 
-# Formats the app can validate: key -> display name. Each key has a
-# formats/<key>.yaml layout; format-specific rules are wired up in validate().
-FORMATS = {"mvrs": "MV-RS Host Download"}
+# Formats the app can validate: key -> display name. Validators are wired up in validate().
+FORMATS = {
+    "mvrs": "MV-RS Host Download",
+    "fcs-csv": "FCS CSV Import",
+    "fcs-xml": "FCS XML Import",
+}
 
 
 @dataclass
@@ -72,7 +76,24 @@ class Report:
 
 
 def validate(content: bytes, filename: str, format_key: str = "mvrs") -> Report:
-    spec = load_format(format_key)
+    fmt = FORMATS[format_key]
+    if format_key == "mvrs":
+        issues, grouping, guide = _validate_mvrs(content)
+    else:
+        from .fcs_csv import validate_csv
+        from .fcs_spec import load_fcs
+        from .fcs_xml import validate_xml
+
+        issues, grouping = (validate_csv if format_key == "fcs-csv" else validate_xml)(content)
+        guide = load_fcs().guide
+    if not content:
+        issues = [Issue(severity=Severity.ERROR, code="empty-file", summary="Empty file",
+                        message="The uploaded file is empty.")]
+    return _build_report(filename, fmt, guide, grouping, issues)
+
+
+def _validate_mvrs(content: bytes) -> tuple[list[Issue], Grouping, str]:
+    spec = load_format("mvrs")
     lines, issues = split_lines(content)
     issues += check_framing(lines, spec.data_length, spec.line_length)
 
@@ -96,11 +117,15 @@ def validate(content: bytes, filename: str, format_key: str = "mvrs") -> Report:
     issues += builder.issues
     issues += mvrs.RuleChecker(spec, builder.tree).run()
 
-    if not lines:
-        issues.append(Issue(severity=Severity.ERROR, code="empty-file", summary="Empty file",
-                            message="The uploaded file is empty."))
-
-    return _build_report(filename, spec, lines, builder.tree, issues)
+    tree = builder.tree
+    route_of_account = {a.index: r.number for r in tree.routes for a in r.accounts}
+    grouping = Grouping(
+        line_count=len(lines),
+        routes=[(f"Route {r.number or '(unknown)'}, starting on line {r.first_line}", r.first_line) for r in tree.routes],
+        accounts=[(_account_title(a, route_of_account.get(a.index, "?")), a.cus.n) for a in tree.accounts],
+        owner=tree.owner,
+    )
+    return issues, grouping, spec.guide
 
 
 def _account_title(acct: mvrs.Account, route: str) -> str:
@@ -110,28 +135,21 @@ def _account_title(acct: mvrs.Account, route: str) -> str:
     return f"{who} \u2014 {', '.join(parts)}, starting on line {acct.cus.n}"
 
 
-def _build_report(filename, spec, lines, tree: mvrs.FileTree, issues: list[Issue]) -> Report:
-    route_of_account = {a.index: r.number for r in tree.routes for a in r.accounts}
+def _build_report(filename: str, format_name: str, guide: str, grouping: Grouping, issues: list[Issue]) -> Report:
     buckets: dict[tuple[str, int], list[Issue]] = defaultdict(list)
     for issue in issues:
-        key = tree.owner.get(issue.line, ("file", 0)) if issue.line else ("file", 0)
+        key = issue.owner or (grouping.owner.get(issue.line, ("file", 0)) if issue.line else ("file", 0))
         buckets[key].append(issue)
 
-    sections: list[Section] = []
-    file_issues = buckets.pop(("file", 0), [])
-    sections.append(Section("file", "File, cycle and structure checks", None, file_issues))
-    for route in tree.routes:
-        sections.append(Section(
-            "route", f"Route {route.number or '(unknown)'}, starting on line {route.first_line}",
-            route.first_line, buckets.pop(("route", route.index), []),
-        ))
-    for acct in tree.accounts:
-        sections.append(Section(
-            "account", _account_title(acct, route_of_account.get(acct.index, "?")),
-            acct.cus.n, buckets.pop(("account", acct.index), []),
-        ))
+    sections: list[Section] = [Section("file", "File, header and structure checks", None, buckets.pop(("file", 0), []))]
+    for i, (title, first) in enumerate(grouping.routes):
+        sections.append(Section("route", title, first, buckets.pop(("route", i), [])))
+    for i, (title, first) in enumerate(grouping.accounts):
+        sections.append(Section("account", title, first, buckets.pop(("account", i), [])))
+    for leftover in buckets.values():  # owner index with no section; keep the issues visible
+        sections[0].issues.extend(leftover)
     for s in sections:
-        s.issues.sort(key=lambda i: (i.line or 0, i.start or 0, i.severity != Severity.ERROR))
+        s.issues.sort(key=lambda i: (i.line or 0, i.start or i.column or 0, i.severity != Severity.ERROR))
 
     rows: dict[tuple[str, Severity], SummaryRow] = {}
     for s in sections:
@@ -151,12 +169,12 @@ def _build_report(filename, spec, lines, tree: mvrs.FileTree, issues: list[Issue
 
     return Report(
         filename=filename,
-        format_name=spec.format,
-        guide=spec.guide,
+        format_name=format_name,
+        guide=guide,
         created=datetime.now(),
-        line_count=len(lines),
-        route_count=len(tree.routes),
-        account_count=len(tree.accounts),
+        line_count=grouping.line_count,
+        route_count=len(grouping.routes),
+        account_count=len(grouping.accounts),
         sections=sections,
         summary=summary,
     )
