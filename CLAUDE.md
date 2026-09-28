@@ -148,7 +148,7 @@ Sources in `samples/` (page numbers are each guide's own "Page N", which equals 
 - **CSV:** `Temetra_NAM_CSV_File_Format_Guide.pdf` (LDI-0665 REV 002, December 2024) is the authority. It supersedes `Temetra_CSVFileFormat_Ref_LDI-0351.pdf` (REV 003, September 2023) for North America.
 - **XML:** `Temetra XML File Format Reference Guide LDI-0587.pdf` (REV 002, May 2025).
 - `temetra-sample-csv-with-notes.csv` is Itron's annotated example with made-up data. Its note rows (line 35 on) are not part of real files.
-- `Sitka_TemetraExport7002be1c.csv` is a customer's Network New Asset file. Temetra imported it without errors (1,321 accounts), so it must produce **zero errors**; `tests/test_samples.py` enforces this. It showed that Temetra ignores unknown columns and accepts duplicate CREF, METERSERIAL and MIUSERIAL values; a repeated CREF overwrites the earlier meter. Those are therefore warnings. Units, sizes, padded values and blank ROUTENAME were accepted too, and stay warnings.
+- `Sitka_TemetraExport7002be1c.csv` is a customer's Network New Asset file. Temetra imported it without errors (1,321 accounts), which showed that Temetra ignores unknown columns and accepts duplicate METERSERIAL and MIUSERIAL values; those are warnings. But each repeated CREF overwrote the earlier meter, so only the kW register survived. **A file that imports but loses readings still fails** (user decision): duplicate CREF is Must correct and carries a How-to-fix suggestion based on Itron's example (CREF-1, METERSERIAL-1, LINKEDMETERSERIAL, original-meter-serial tag). `tests/test_samples.py` requires that its only errors are duplicate CREFs.
 
 **XML:** the same format family as FCS: same namespace, sections and entity names, with Temetra supporting a subset. It reuses `fcs_xml.py`:
 - `formats/temetra_elements.yaml` is generated with `tools/extract_fcs_guide.py <text> <out> --profile temetra`.
@@ -187,6 +187,9 @@ Still enforced:
 - Where the guide contradicts itself, follow its specific notes and examples over its general conventions.
   - Wand Program values include SR00.
   - WRR Device ID may be numeric.
+
+A finding that lets the import succeed but loses or corrupts data (for example missing readings) is **Must correct**, not a warning.
+Findings can carry a `fix` ("How to fix") suggestion, shown in the report and PDF.
 
 **Three severity levels** (`issues.Severity`), shown as categories in the report and PDF:
 - **Must correct** (`ERROR`): the import fails or the data is wrong.

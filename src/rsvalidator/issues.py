@@ -35,6 +35,7 @@ class Issue:
     column: int | None = None  # 1-based CSV column
     path: str | None = None  # XML element path, e.g. "WorkSet/Work/Customer/Meter"
     owner: tuple[str, int] | None = None  # report section, when not implied by the line
+    fix: str | None = None  # suggested correction, shown as "How to fix"
 
     @property
     def position_label(self) -> str | None:

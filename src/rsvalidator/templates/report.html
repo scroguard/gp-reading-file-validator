@@ -110,6 +110,7 @@
           <span class="tag {{ i.severity.value }}">{{ i.severity.label }}</span>
         </div>
         <p>{{ i.message }}{% if i.page %} <span class="page">Guide p.{{ i.page }}</span>{% endif %}</p>
+        {% if i.fix %}<p class="fix"><strong>How to fix:</strong> {{ i.fix }}</p>{% endif %}
       </li>
       {% endfor %}
     </ol>

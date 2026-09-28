@@ -60,7 +60,9 @@ TEMETRA_ACCEPTED = Path(__file__).parent.parent / "samples" / "Sitka_TemetraExpo
 
 
 @pytest.mark.skipif(not TEMETRA_ACCEPTED.exists(), reason="sample not present")
-def test_temetra_csv_accepted_by_temetra_has_no_errors():
-    # Temetra imported this file without errors (1,321 accounts); it must stay error-free.
+def test_temetra_csv_accepted_by_temetra_only_duplicate_crefs():
+    # Temetra imported this file without errors (1,321 accounts), but each repeated CREF overwrote the earlier
+    # meter (only the kW register survived). Those 100 duplicate CREFs are the only errors it may have.
     report = validate(TEMETRA_ACCEPTED.read_bytes(), TEMETRA_ACCEPTED.name, "temetra-csv")
-    assert report.errors == 0
+    codes = {i.code for s in report.sections for i in s.issues if i.severity.value == "error"}
+    assert codes <= {"duplicate-cref"}

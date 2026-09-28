@@ -105,6 +105,7 @@ def validate_temetra_csv(content: bytes, filename: str = "") -> tuple[list[Issue
     by = {c.name: c for c in columns}
 
     unique_seen: dict[tuple[str, str], int] = {}
+    crefs: dict[str, list[tuple[int, str]]] = {}  # CREF -> [(line, METERSERIAL)]
     groups: list[tuple[str, str, str, int]] = []  # (route, account, name, first line)
     routes: dict[str, int] = {}
     for n, values in data:
@@ -135,6 +136,7 @@ def validate_temetra_csv(content: bytes, filename: str = "") -> tuple[list[Issue
                 continue
             issues += _check_value(rules, n, col, values[col.index - 1], unique_seen)
         issues += _row_rules(n, get, by, ftype)
+        issues += _duplicate_cref(n, get, by, crefs)
     return issues, grouping
 
 
@@ -288,12 +290,9 @@ def _check_value(rules, n, col: Col, raw: str, unique_seen) -> list[Issue]:
     if rule.get("unique"):
         key = (col.name, value)
         if key in unique_seen:
-            hint = ("" if col.name not in ("METERSERIAL", "CREF") else
-                    " Temetra accepts the file, but a row whose CREF already exists overwrites that meter (p.8), so only "
-                    "the last of these rows is kept. If this row is a second register of the same meter (for example "
-                    "kW demand), Itron's example gives each register its own METERSERIAL and CREF (such as 3333333-1), "
-                    "with LINKEDMETERSERIAL set to the main meter's serial and an original-meter-serial=<serial> tag "
-                    "in ADDTAG.")
+            hint = ("" if col.name != "METERSERIAL" else
+                    " If this row is a second register of the same meter, see the duplicate CREF correction for "
+                    "this line.")
             # Temetra imported a customer file with duplicates without errors, so this is a warning.
             out += err("duplicate-value", f"{col.name} not unique",
                        f"\"{value}\" is also used on line {unique_seen[key]}. The guide says {col.name} must be "
@@ -379,6 +378,35 @@ def _tags(rules, n, col, value, rule, page):
         elif "max" in spec and len(val) > spec["max"]:
             err("tag-value", f"{col.name}: {key} too long", f"{key} can be at most {spec['max']} characters.", tag_page=tp)
     return out
+
+
+def _duplicate_cref(n, get, by, crefs) -> list[Issue]:
+    """A repeated CREF overwrites the earlier meter on import (p.8), so a second register is lost.
+
+    Confirmed with a customer file: Temetra imported it without errors, but only the last row
+    (the kW register) survived for each repeated CREF.
+    """
+    cref, serial = get("CREF"), get("METERSERIAL")
+    if not cref or "CREF" not in by:
+        return []
+    earlier = crefs.setdefault(cref, [])
+    earlier.append((n, serial))
+    if len(earlier) == 1:
+        return []
+    k = len(earlier) - 1  # 1 for the first repeat, 2 for the next...
+    first_line, main_serial = earlier[0]
+    main_serial = main_serial or serial
+    linked = main_serial if k == 1 else f"{main_serial}-{k - 1}"
+    fix = (f"If this is a secondary reading for a meter (for example kW demand), append a suffix to the CREF so it is "
+           f"unique, as Itron's example does: CREF {cref}-{k}. Give the register its own meter serial as well "
+           f"(METERSERIAL {main_serial}-{k}), set LINKEDMETERSERIAL to {linked}, and add "
+           f"original-meter-serial={main_serial} to ADDTAG.")
+    return [Issue(
+        severity=Severity.ERROR, code="duplicate-cref", summary="Duplicate CREF (earlier meter is overwritten)",
+        line=n, column=by["CREF"].index, field="CREF", page=8, fix=fix,
+        message=(f"Duplicate CREF detected on line {n}: CREF {cref} is also used on line {first_line}. Temetra "
+                 f"imports the file without an error, but a row whose CREF already exists overwrites that meter "
+                 f"(p.8), so only the last of these rows is kept and the other reading is lost."))]
 
 
 def _row_rules(n, get, by, ftype) -> list[Issue]:

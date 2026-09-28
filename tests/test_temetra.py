@@ -93,10 +93,19 @@ def test_generic_meter_model():
     assert codes(issues) == ["generic-model"]
 
 
-def test_uniqueness_is_a_warning():
-    # Temetra imports duplicates; a repeated CREF overwrites the earlier meter.
-    _, issues = run(tcsv([row(0), row(1, CREF="C000")]))
-    assert codes(issues, Severity.WARNING) == ["duplicate-value"] and "overwrites" in issues[0].message
+def test_duplicate_cref_must_be_fixed_with_suggested_correction():
+    # Temetra imports it, but the later row overwrites the earlier meter (confirmed: the kW register replaced kWh).
+    rows = [row(0), row(1, CREF="C000", METERSERIAL="1234567", METERUNITS="kW"),
+            row(2, CREF="C000", METERSERIAL="1234567", METERUNITS="kW")]
+    _, issues = run(tcsv(rows))
+    dups = [i for i in issues if i.code == "duplicate-cref"]
+    assert [d.severity for d in dups] == [Severity.ERROR, Severity.ERROR]
+    assert dups[0].message.startswith("Duplicate CREF detected on line 3: CREF C000 is also used on line 2.")
+    assert "CREF C000-1" in dups[0].fix and "METERSERIAL 1234567-1" in dups[0].fix
+    assert "LINKEDMETERSERIAL to 1234567," in dups[0].fix and "original-meter-serial=1234567" in dups[0].fix
+    assert "CREF C000-2" in dups[1].fix and "LINKEDMETERSERIAL to 1234567-1," in dups[1].fix
+    # the repeated serial is still a warning that points at the CREF correction
+    assert codes(issues, Severity.WARNING) == ["duplicate-value", "duplicate-value"]
 
 
 def test_tags():
@@ -189,7 +198,7 @@ def test_padded_lookup_values_and_blank_required_are_warnings():
     assert codes(issues, Severity.ERROR) == []
 
 
-def test_duplicate_serial_explains_register_linking():
+def test_duplicate_serial_alone_is_a_warning():
     _, issues = run(tcsv([row(0), row(1, METERSERIAL="1234567")]))
     [dup] = issues
-    assert dup.code == "duplicate-value" and "LINKEDMETERSERIAL" in dup.message
+    assert dup.code == "duplicate-value" and dup.severity == Severity.WARNING

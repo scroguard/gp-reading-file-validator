@@ -107,7 +107,7 @@ csv:
   fields:
     IGNORE: {kind: yesno, page: 20}
     CANCREATE: {kind: yesno, page: 15}
-    CREF: {kind: text, max: 30, unique: true, page: 15}
+    CREF: {kind: text, max: 30, page: 15}   # duplicates are checked per row in temetra_csv.py
     MCATEGORY: {kind: text, values: ["0", "1", "4"], page: 15}
     COLLECTIONMETHOD: {kind: text, exact: true, page: 16, values: ["Manual Read", "Wireless", "Gen5 500G ERT", "Gen5 500W ERT",
       "Gen5 Intelis Gas", "Riva 500G ERT", "Riva 500W ERT", "Cellular 500W ERT", "Cellular 500G ERT", "Wand", "Fixed Network"]}

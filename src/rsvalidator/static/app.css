@@ -160,4 +160,6 @@ details.section[open] > summary::before { content: "▾"; }
 }
 .chip.rec { font-family: ui-monospace, Menlo, monospace; }
 .page { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.fix { margin-top: .3rem; padding: .35rem .6rem; border-left: 3px solid var(--accent); background: var(--chip);
+  border-radius: 0 6px 6px 0; }
 .clean { margin-top: 1rem; }

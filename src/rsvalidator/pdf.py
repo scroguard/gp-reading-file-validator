@@ -161,6 +161,10 @@ def render_pdf(report: Report, customer: str = "") -> bytes:
             pdf.set_x(pdf.l_margin + 22)
             text = issue.message + (f" (Guide p.{issue.page})" if issue.page else "")
             pdf.multi_cell(width - 22, 4.3, _t(text), align="L", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            if issue.fix:
+                pdf.set_x(pdf.l_margin + 22)
+                pdf.multi_cell(width - 22, 4.3, "**How to fix:** " + _t(issue.fix).replace("**", "* *"), align="L",
+                               markdown=True, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             pdf.ln(0.8)
     if clean:
         pdf.ln(3)
