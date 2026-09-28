@@ -9,7 +9,7 @@ uv venv && uv pip install -e '.[dev]'                  # setup (Python 3.12+)
 .venv/bin/python -m pytest                             # all tests
 .venv/bin/python -m pytest tests/test_mvrs.py -k rff   # single test / subset
 .venv/bin/uvicorn rsvalidator.web:app --reload         # dev server, http://127.0.0.1:8000
-docker compose up -d --build                           # container, http://127.0.0.1:9999
+docker compose up -d --build                           # container, http://127.0.0.1:9898
 ```
 
 `tests/test_samples.py` runs against real files in `samples/` when present and is skipped otherwise. Docker is not installed on the dev Mac, so the image build has not been run locally.

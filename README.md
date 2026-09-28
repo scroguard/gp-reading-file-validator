@@ -20,12 +20,12 @@ Validation is strict. A file that passes follows the guide exactly, so it will i
 docker compose up -d --build
 ```
 
-The app is then available at <http://127.0.0.1:9999>.
+The app is then available at <http://127.0.0.1:9898>.
 
 **Access is limited to this machine by default.** Uploaded files contain customer names and addresses, and the app has
 no login of its own. The recommended setup is:
 
-1. Keep the default port mapping (`127.0.0.1:9999:8000` in `docker-compose.yml`).
+1. Keep the default port mapping (`127.0.0.1:9898:8000` in `docker-compose.yml`).
 2. Run a reverse proxy on the same host (nginx, Caddy, Traefik and so on) that handles authentication and TLS.
 3. Reach the proxy over your VPN.
 
