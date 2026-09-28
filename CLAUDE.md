@@ -155,6 +155,6 @@ Open questions for the user:
 ## Deployment
 
 - Authentication is out of scope for the app. It is expected to sit behind a user-configured reverse proxy, typically reached over a VPN, which handles auth.
-- The Docker configuration should **default to binding to `127.0.0.1`** and strongly recommend that setup in its comments and docs. Keep it easy to change for users who host on a trusted LAN instead. That choice belongs to them.
+- The container listens on **9898**. The Docker configuration should **default to binding to `127.0.0.1`** and strongly recommend that setup. `docker-compose.yml` offers alternatives: bind to the host's VPN IP for a proxy on another host (the user's actual setup), or all interfaces for a trusted LAN. That choice belongs to the user.
 - Uploaded files contain customer PII. They are never saved. Uploads over 1 MB are briefly spooled to `/tmp` (python-multipart), which compose mounts as tmpfs, so keep `/tmp` in RAM in any deployment. Reports, which contain names, live only in memory until their TTL expires.
 - The interface guide PDF is marked proprietary and confidential by Itron. It stays in git-ignored `samples/` and is never committed. The repo, which contains field layouts derived from it, was made public on 2026-09-28; the user says they have permission.

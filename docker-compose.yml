@@ -6,16 +6,21 @@ services:
     container_name: rsvalidator
     restart: unless-stopped
     ports:
-      # STRONGLY RECOMMENDED (default): publish on localhost only. Uploaded files
-      # contain customer names and addresses, and the app has no login of its own.
-      # Put a reverse proxy on this host (reached over your VPN) in front of it to
-      # handle authentication and TLS, and point the proxy at 127.0.0.1:9898.
-      - "127.0.0.1:9898:8000"
+      # The app listens on port 9898 inside the container. Pick ONE of these.
+      # Uploaded files contain customer names and addresses, and the app has no
+      # login of its own, so expose it as narrowly as you can.
       #
-      # ALTERNATIVE: if you run this only on a local network you trust and want
-      # to reach it directly without a proxy, comment out the line above and use
-      # the line below instead. Anyone who can reach this port can use the app.
-      # - "9898:8000"
+      # A) Reverse proxy on THIS host (default): only this machine can connect.
+      - "127.0.0.1:9898:9898"
+      #
+      # B) Reverse proxy on ANOTHER host, reached over a VPN: publish only on
+      #    this host's VPN address (replace 10.8.0.5 with yours), so the app is
+      #    reachable through the VPN but not from the rest of the network.
+      # - "10.8.0.5:9898:9898"
+      #
+      # C) No proxy, on a local network you trust: publish on all interfaces.
+      #    Anyone who can reach this host can use the app.
+      # - "9898:9898"
     environment:
       RSV_MAX_UPLOAD_MB: "50"          # largest file accepted
       RSV_REPORT_TTL_MINUTES: "30"     # how long a report stays downloadable as PDF

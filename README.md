@@ -23,14 +23,15 @@ docker compose up -d --build
 The app is then available at <http://127.0.0.1:9898>.
 
 **Access is limited to this machine by default.** Uploaded files contain customer names and addresses, and the app has
-no login of its own. The recommended setup is:
+no login of its own, so put a reverse proxy in front of it to handle authentication and TLS. The app listens on port
+9898. `docker-compose.yml` has three choices for publishing it; uncomment exactly one:
 
-1. Keep the default port mapping (`127.0.0.1:9898:8000` in `docker-compose.yml`).
-2. Run a reverse proxy on the same host (nginx, Caddy, Traefik and so on) that handles authentication and TLS.
-3. Reach the proxy over your VPN.
+- **A (default), proxy on the same host:** `127.0.0.1:9898:9898`. Only this machine can connect.
+- **B, proxy on another host over a VPN:** `<this host's VPN IP>:9898:9898`. The app is reachable through the VPN
+  only.
+- **C, no proxy, trusted local network only:** `9898:9898`. Anyone who can reach the host can use it.
 
-If you only use the app on a local network you trust, you can publish the port on all interfaces instead. See the
-comments in `docker-compose.yml`. That choice is yours.
+Option A cannot be reached from a proxy on a different machine, even over a VPN. Use B for that. The choice is yours.
 
 Settings (environment variables):
 
