@@ -66,7 +66,8 @@ def test_unknown_heading_suggests_spelling_and_lowercase_is_error():
     _, issues = run(tcsv([row(0) + ["FALSE", "true"]], header))
     unknown = next(i for i in issues if i.code == "header-unknown")
     assert "Did you mean PERMANENTLYDISCONNECTED?" in unknown.message
-    assert codes(issues) == ["header-case", "header-unknown"]
+    assert codes(issues, Severity.ERROR) == ["header-case"]
+    assert codes(issues, Severity.WARNING) == ["header-unknown"]  # Temetra ignores unknown columns
 
 
 def test_heading_with_trailing_space_is_a_warning():
@@ -92,9 +93,10 @@ def test_generic_meter_model():
     assert codes(issues) == ["generic-model"]
 
 
-def test_uniqueness():
+def test_uniqueness_is_a_warning():
+    # Temetra imports duplicates; a repeated CREF overwrites the earlier meter.
     _, issues = run(tcsv([row(0), row(1, CREF="C000")]))
-    assert codes(issues) == ["duplicate-value"]
+    assert codes(issues, Severity.WARNING) == ["duplicate-value"] and "overwrites" in issues[0].message
 
 
 def test_tags():

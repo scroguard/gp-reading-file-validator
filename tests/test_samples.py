@@ -54,3 +54,13 @@ def test_fcs_csv_accepted_by_fcs_has_no_errors():
     # FCS imported this file; it must stay error-free (its two warnings are expected).
     report = validate(FCS_CSV_ACCEPTED.read_bytes(), FCS_CSV_ACCEPTED.name, "fcs-csv")
     assert report.errors == 0
+
+
+TEMETRA_ACCEPTED = Path(__file__).parent.parent / "samples" / "Sitka_TemetraExport7002be1c.csv"
+
+
+@pytest.mark.skipif(not TEMETRA_ACCEPTED.exists(), reason="sample not present")
+def test_temetra_csv_accepted_by_temetra_has_no_errors():
+    # Temetra imported this file without errors (1,321 accounts); it must stay error-free.
+    report = validate(TEMETRA_ACCEPTED.read_bytes(), TEMETRA_ACCEPTED.name, "temetra-csv")
+    assert report.errors == 0

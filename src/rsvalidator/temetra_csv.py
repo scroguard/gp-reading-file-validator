@@ -166,9 +166,12 @@ def _header(rules, hline, header, issues) -> list[Col]:
         if col.rule is None:
             close = difflib.get_close_matches(name, list(fields), n=1, cutoff=0.85)
             hint = f" Did you mean {close[0]}?" if close else ""
+            # Temetra imports files with unrecognised columns and ignores them (confirmed with a
+            # customer file), so the column's data is silently not loaded: a warning, not an error.
             issues.append(_issue(hline, "header-unknown", "Unknown column heading",
                                  f"Column {i} ({name}) is not a field in the Temetra CSV guide's list of available "
-                                 f"fields (p.15-32).{hint}", column=i, page=15))
+                                 f"fields (p.15-32), so Temetra ignores it and its data is not loaded.{hint}",
+                                 Severity.WARNING, column=i, page=15))
     return cols
 
 
@@ -286,11 +289,15 @@ def _check_value(rules, n, col: Col, raw: str, unique_seen) -> list[Issue]:
         key = (col.name, value)
         if key in unique_seen:
             hint = ("" if col.name not in ("METERSERIAL", "CREF") else
-                    " If this row is a second register of the same meter (for example kW demand), Itron's example "
-                    "gives each register its own METERSERIAL and CREF (such as 3333333-1), with LINKEDMETERSERIAL set to "
-                    "the main meter's serial and an original-meter-serial=<serial> tag in ADDTAG.")
+                    " Temetra accepts the file, but a row whose CREF already exists overwrites that meter (p.8), so only "
+                    "the last of these rows is kept. If this row is a second register of the same meter (for example "
+                    "kW demand), Itron's example gives each register its own METERSERIAL and CREF (such as 3333333-1), "
+                    "with LINKEDMETERSERIAL set to the main meter's serial and an original-meter-serial=<serial> tag "
+                    "in ADDTAG.")
+            # Temetra imported a customer file with duplicates without errors, so this is a warning.
             out += err("duplicate-value", f"{col.name} not unique",
-                       f"\"{value}\" is also used on line {unique_seen[key]}. {col.name} must be unique.{hint}")
+                       f"\"{value}\" is also used on line {unique_seen[key]}. The guide says {col.name} must be "
+                       f"unique.{hint}", Severity.WARNING)
         unique_seen.setdefault(key, n)
     return out
 

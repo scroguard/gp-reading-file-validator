@@ -148,6 +148,7 @@ Sources in `samples/` (page numbers are each guide's own "Page N", which equals 
 - **CSV:** `Temetra_NAM_CSV_File_Format_Guide.pdf` (LDI-0665 REV 002, December 2024) is the authority. It supersedes `Temetra_CSVFileFormat_Ref_LDI-0351.pdf` (REV 003, September 2023) for North America.
 - **XML:** `Temetra XML File Format Reference Guide LDI-0587.pdf` (REV 002, May 2025).
 - `temetra-sample-csv-with-notes.csv` is Itron's annotated example with made-up data. Its note rows (line 35 on) are not part of real files.
+- `Sitka_TemetraExport7002be1c.csv` is a customer's Network New Asset file. Temetra imported it without errors (1,321 accounts), so it must produce **zero errors**; `tests/test_samples.py` enforces this. It showed that Temetra ignores unknown columns and accepts duplicate CREF, METERSERIAL and MIUSERIAL values; a repeated CREF overwrites the earlier meter. Those are therefore warnings. Units, sizes, padded values and blank ROUTENAME were accepted too, and stay warnings.
 
 **XML:** the same format family as FCS: same namespace, sections and entity names, with Temetra supporting a subset. It reuses `fcs_xml.py`:
 - `formats/temetra_elements.yaml` is generated with `tools/extract_fcs_guide.py <text> <out> --profile temetra`.
