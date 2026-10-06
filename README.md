@@ -18,19 +18,23 @@ Validation is strict. A file that passes follows the guide exactly, so it will i
 
 ## Running with Docker
 
+**Before the first start, edit `docker-compose.yml` and replace `YOUR_VPN_IP` with this host's VPN IP address.**
+Until you do, `docker compose` stops with `invalid IP address: YOUR_VPN_IP`. Then run:
+
 ```sh
 docker compose up -d --build
 ```
 
-The app is then available at <http://127.0.0.1:9898>.
+The app is then available at `http://<this host's VPN IP>:9898`.
 
-**Access is limited to this machine by default.** Uploaded files contain customer names and addresses, and the app has
-no login of its own, so put a reverse proxy in front of it to handle authentication and TLS. The app listens on port
-9898. `docker-compose.yml` has three choices for publishing it; uncomment exactly one:
+Uploaded files contain customer names and addresses, and the app has no login of its own, so put a reverse proxy in
+front of it to handle authentication and TLS. The app listens on port 9898. `docker-compose.yml` has three choices for
+publishing it; uncomment exactly one:
 
-- **A (default), proxy on the same host:** `127.0.0.1:9898:9898`. Only this machine can connect.
-- **B, proxy on another host over a VPN:** `<this host's VPN IP>:9898:9898`. The app is reachable through the VPN
-  only.
+- **B (default), proxy on another host over a VPN:** `<this host's VPN IP>:9898:9898`. The app is reachable through
+  the VPN only.
+- **A, proxy on the same host:** `127.0.0.1:9898:9898`. Only this machine can connect. This is the most locked-down
+  choice; use it whenever the proxy runs on this machine.
 - **C, no proxy, trusted local network only:** `9898:9898`. Anyone who can reach the host can use it.
 
 Option A cannot be reached from a proxy on a different machine, even over a VPN. Use B for that. The choice is yours.

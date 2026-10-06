@@ -283,7 +283,10 @@ def _check_value(rules, n, col: Col, raw: str, unique_seen) -> list[Issue]:
                    f"It must be an exact match of one of: {', '.join(rule['values'])}. The value is \"{value}\".")
     if "values_warn" in rule:
         v = value.strip('"').strip() if rule.get("strip_quotes") else value
-        if v not in rule["values_warn"]:
+        allowed = rule["values_warn"]
+        if rule.get("ignore_case"):
+            v, allowed = v.casefold(), [a.casefold() for a in allowed]
+        if v not in allowed:
             out += err("value-not-listed", f"{col.name}: value not in the guide's list",
                        f"\"{value}\" is not in the guide's list ({', '.join(rule['values_warn'])}). Temetra's list depends "
                        f"on the network and meter type, so check it exists in Temetra.", Severity.WARNING)

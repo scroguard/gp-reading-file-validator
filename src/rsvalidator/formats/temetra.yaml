@@ -104,6 +104,7 @@ csv:
   # email | gps | lat | lon | tags. `values` are exact matches; `values_warn` lists that
   # only produce a warning when a value is not in them (lists the guide says depend on
   # the network, or that Itron's own sample departs from). `required` = value may not be blank.
+  # `ignore_case` = list matching ignores case (user decision: Temetra treats METERUNITS that way).
   fields:
     IGNORE: {kind: yesno, page: 20}
     CANCREATE: {kind: yesno, page: 15}
@@ -118,7 +119,7 @@ csv:
     METERBRAND: {kind: text, exact: true, page: 18}
     METERMODEL: {kind: text, exact: true, page: 18}
     METERTYPE: {kind: text, exact: true, page: 18}
-    METERUNITS: {kind: text, exact: true, page: 18, values_warn: [CCF, CGAL, cu ft, gal, kgal, kL, kVA, kVar, kVarh, kW, kWh, "m^3", m3, MCF, ML, PF, Vah, Wh]}
+    METERUNITS: {kind: text, exact: true, ignore_case: true, page: 18, values_warn: [CCF, CGAL, cu ft, gal, kgal, kL, kVA, kVar, kVarh, kW, kWh, "m^3", m3, MCF, ML, PF, Vah, Wh]}
     METERUNIT: {kind: text, page: 14, same_as: METERUNITS}
     METERNOMINALSIZE: {kind: text, exact: true, max: 50, page: 19, values_warn: [DN15 Coax, DN15, DN20, DN20 Coax, DN25, DN30, DN32, DN40, DN50,
       DN60, DN65, DN80, DN100, DN125, DN150, DN200, DN250, DN300, DN400, DN500, DN600, DN25 Coax, DN75, DN30 Coax]}

@@ -162,6 +162,7 @@ Sources in `samples/` (page numbers are each guide's own "Page N", which equals 
 - Rows with IGNORE=yes are skipped.
 - Field rules are hand-written in `temetra.yaml` under `csv:`. `formats/temetra_csv_fields.yaml` is the generated reference extraction (`tools/extract_temetra_csv_guide.py`) they were written from.
 - `values_warn` lists (units, sizes, pipe types) only produce warnings, because the guide says Temetra's lists depend on the network.
+- METERUNITS (and METERUNIT) is matched against its list without regard to case (`ignore_case`, user decision), so `KWH` and `kwh` are accepted.
 - Tags in ADDTAG, ADDACCOUNTTAG and METERTAGS are checked against the guide's tag tables. Tags not in those tables are warnings, because utilities can define their own.
 
 ## Validation policy decisions (from the user)
@@ -199,7 +200,7 @@ Findings can carry a `fix` ("How to fix") suggestion, shown in the report and PD
 
 **Warning, not error,** where the guide says MV-RS continues the import or FCS accepted it. That covers:
 - Wrong record length.
-- Pad bytes that aren't blank.
+- Pad bytes that aren't blank, such as the `!` in byte 126 of every forest-grove line (user decision).
 - Header/trailer mismatches.
 - Cycle and route counts in the FHD/CHD.
 - Duplicate, zero or decreasing read sequence numbers (MV-RS corrects them on import and warns).
@@ -208,12 +209,9 @@ Findings can carry a `fix` ("How to fix") suggestion, shown in the report and PD
 
 Everything else is an **error**, including the rules MV-RS silently repairs, such as a missing RFF for read method R.
 
-Open questions for the user:
-- The `!` in byte 126 of every forest-grove line. It is currently a pad warning.
-
 ## Deployment
 
 - Authentication is out of scope for the app. It is expected to sit behind a user-configured reverse proxy, typically reached over a VPN, which handles auth.
-- The container listens on **9898**. The Docker configuration should **default to binding to `127.0.0.1`** and strongly recommend that setup. `docker-compose.yml` offers alternatives: bind to the host's VPN IP for a proxy on another host (the user's actual setup), or all interfaces for a trusted LAN. That choice belongs to the user.
+- The container listens on **9898**. `docker-compose.yml` **defaults to binding to the host's VPN IP** (option B, for a proxy on another host; user decision, 2026-10-06). It ships with the placeholder `YOUR_VPN_IP`, which compose rejects as an invalid IP, so the container can't start until the end user enters their VPN IP. Alternatives: `127.0.0.1` (option A, the most locked-down, for a proxy on the same host) or all interfaces (option C, trusted LAN only). That choice belongs to the user.
 - Uploaded files contain customer PII. They are never saved. Uploads over 1 MB are briefly spooled to `/tmp` (python-multipart), which compose mounts as tmpfs, so keep `/tmp` in RAM in any deployment. Reports, which contain names, live only in memory until their TTL expires.
 - The interface guide PDF is marked proprietary and confidential by Itron. It stays in git-ignored `samples/` and is never committed. The repo, which contains field layouts derived from it, was made public on 2026-09-28; the user says they have permission.

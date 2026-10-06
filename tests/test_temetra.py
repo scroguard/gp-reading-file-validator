@@ -235,3 +235,11 @@ def test_duplicate_serial_alone_is_a_warning():
     _, issues = run(tcsv([row(0), row(1, METERSERIAL="1234567")]))
     [dup] = issues
     assert dup.code == "duplicate-value" and dup.severity == Severity.WARNING
+
+
+def test_meter_units_are_not_case_sensitive():
+    for units in ("KWH", "kwh", "Gal", "CU FT"):
+        _, issues = run(tcsv([row(0, METERUNITS=units)]))
+        assert issues == [], units
+    _, issues = run(tcsv([row(0, METERUNITS="litres")]))
+    assert codes(issues, Severity.WARNING) == ["value-not-listed"]
