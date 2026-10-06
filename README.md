@@ -18,20 +18,28 @@ Validation is strict. A file that passes follows the guide exactly, so it will i
 
 ## Running with Docker
 
-**Before the first start, edit `docker-compose.yml` and replace `YOUR_VPN_IP` with this host's VPN IP address.**
-Until you do, `docker compose` stops with `invalid IP address: YOUR_VPN_IP`. Then run:
+**Before the first start, set `RSV_BIND_IP` to this host's VPN IP address.** Either put it in a `.env` file next to
+`docker-compose.yml` (git-ignored; copy `.env.example`):
 
 ```sh
+cp .env.example .env      # then edit RSV_BIND_IP
 docker compose up -d --build
 ```
 
-The app is then available at `http://<this host's VPN IP>:9898`.
+or pass it on the command line:
+
+```sh
+RSV_BIND_IP=10.8.0.5 docker compose up -d --build
+```
+
+Until it is set, `docker compose` stops with `required variable RSV_BIND_IP is missing a value`. The app is then
+available at `http://<RSV_BIND_IP>:9898`.
 
 Uploaded files contain customer names and addresses, and the app has no login of its own, so put a reverse proxy in
 front of it to handle authentication and TLS. The app listens on port 9898. `docker-compose.yml` has three choices for
 publishing it; uncomment exactly one:
 
-- **B (default), proxy on another host over a VPN:** `<this host's VPN IP>:9898:9898`. The app is reachable through
+- **B (default), proxy on another host over a VPN:** `${RSV_BIND_IP}:9898:9898`. The app is reachable through
   the VPN only.
 - **A, proxy on the same host:** `127.0.0.1:9898:9898`. Only this machine can connect. This is the most locked-down
   choice; use it whenever the proxy runs on this machine.

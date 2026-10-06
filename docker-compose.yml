@@ -13,9 +13,12 @@ services:
       # B) Reverse proxy on ANOTHER host, reached over a VPN (default):
       #    publish only on this host's VPN address, so the app is reachable
       #    through the VPN but not from the rest of the network.
-      #    >>> REQUIRED: replace YOUR_VPN_IP with this host's VPN IP address
-      #    >>> (for example 10.8.0.5). The container will not start until you do.
-      - "YOUR_VPN_IP:9898:9898"
+      #    >>> REQUIRED: set RSV_BIND_IP to this host's VPN IP address (for
+      #    >>> example 10.8.0.5), either in a .env file next to this one (copy
+      #    >>> .env.example) or on the command line:
+      #    >>>   RSV_BIND_IP=10.8.0.5 docker compose up -d --build
+      #    >>> The container will not start until it is set.
+      - "${RSV_BIND_IP:?Set RSV_BIND_IP to this host's VPN IP in .env or the environment (see .env.example)}:9898:9898"
       #
       # A) Reverse proxy on THIS host: only this machine can connect. The most
       #    locked-down choice; use it whenever the proxy runs on this machine.

@@ -13,3 +13,6 @@ __pycache__/
 .DS_Store
 *.csv
 *.xml
+
+# Local deployment settings
+.env
